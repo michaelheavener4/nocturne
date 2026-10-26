@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "muse"
+version = "0.1.0"
+description = "Local-first agentic music studio: plain-language briefs to editable MIDI, with an Ableton Live bridge"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Michael Heavener" }]
+dependencies = ["pydantic>=2"]
+
+[project.scripts]
+muse = "muse.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
