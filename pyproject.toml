@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Michael Heavener" }]
-dependencies = ["pydantic>=2"]
+dependencies = ["pydantic>=2", "numpy>=1.26"]
 
 [project.scripts]
 muse = "muse.cli:main"
