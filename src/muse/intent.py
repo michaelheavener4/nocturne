@@ -51,13 +51,21 @@ class IntentInterpreter:
                 "warmth": ("warm", "tender", "soft", "intimate"),
                 "energy": ("driving", "urgent", "intense", "dance"),
                 "wonder": ("glassy", "dreamy", "cinematic", "mysterious"),
+                "brightness": ("bright", "playful", "cheerful", "light"),
+                "darkness": ("dark", "nocturnal", "melancholy"),
+                "playfulness": ("playful", "bouncy", "whimsical"),
             }.items() if any(w in lower for w in words)
         }
         bpm = 120.0
         match = re.search(r"(\d{2,3})\s*bpm", lower)
         if match:
             bpm = float(match.group(1))
-        key = "A minor" if any(w in lower for w in ("dark", "tense", "nocturnal", "melancholy")) else "C minor"
+        key_match = re.search(r"(?<![a-z])([a-g])\s*([#♯b♭]?)\s+(major|minor)\b", lower)
+        if key_match:
+            tonic, accidental, mode_name = key_match.groups()
+            key = tonic.upper() + accidental.replace("♯", "#").replace("♭", "b") + " " + mode_name
+        else:
+            key = "A minor" if any(w in lower for w in ("dark", "tense", "nocturnal", "melancholy")) else "C minor"
         goals = ["8-bar idea", "editable MIDI", "leave space for revision"]
         if "build" in lower or "release" in lower:
             goals.append("increase density toward the final bars")
