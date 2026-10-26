@@ -4,6 +4,40 @@ import re
 from .models import CreativeBrief
 
 
+# Signed feedback dimensions: negative means less/lower, positive more/higher.
+# Match phrases, not substrings (so "less busy" never also means "busy").
+FEEDBACK_TERMS = {
+    "energy": {"high": ("more energetic", "more energy", "harder", "louder", "more intense", "driving"),
+               "low": ("less energetic", "less energy", "softer", "quieter", "calmer", "less intense")},
+    "density": {"high": ("more dense", "denser", "more busy", "busier", "more notes", "more rhythmic"),
+                "low": ("less dense", "less busy", "sparser", "sparse", "thin out", "thinner", "add space", "more space")},
+    "brightness": {"high": ("brighter", "higher register", "higher", "lighter"),
+                   "low": ("darker", "lower register", "lower", "darker sounding")},
+    "tension": {"high": ("more tense", "more tension", "tenser", "more suspense"),
+                "low": ("less tense", "less tension", "relaxed", "resolve")},
+    "length": {"high": ("longer", "extend", "more bars"),
+               "low": ("shorter", "fewer bars")},
+}
+
+
+def parse_feedback(text: str) -> dict[str, int]:
+    """Translate recognized revision language into inspectable signed dimensions.
+
+    Conflicting directions cancel. A phrase contributes at most once per direction;
+    dimensions are bounded to -1, 0, or 1 so wording repetition is deterministic.
+    """
+    lower = text.lower()
+    result = {}
+    for dimension, directions in FEEDBACK_TERMS.items():
+        def matches(phrases: tuple[str, ...]) -> bool:
+            return any(re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", lower)
+                       for phrase in phrases)
+        value = int(matches(directions["high"])) - int(matches(directions["low"]))
+        if value:
+            result[dimension] = value
+    return result
+
+
 class IntentInterpreter:
     """Small transparent parser; an LLM can replace this without changing the schema."""
 
