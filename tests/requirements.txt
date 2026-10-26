@@ -1,0 +1,3 @@
+# Test-only dependencies for the Stream B verification harness.
+# The package itself gains no runtime dependencies.
+pytest>=7
