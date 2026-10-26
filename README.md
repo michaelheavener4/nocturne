@@ -23,6 +23,16 @@ prompt ──► IntentInterpreter ──► CreativeBrief ──► Arrangement
 
 15 modules, 1,173 lines of Python. The whole pipeline is inspectable: that is the point of the project.
 
+## Feedback
+
+Revision language changes the music, measurably. `muse demo --feedback "..."` parses recognized phrases (darker, thinner, busier, more space, lower register, and friends) into signed dimensions in `intent.py`, and the planner in `arrangement.py` maps those dimensions onto register, density, velocity, and structure. The mapping is an explicit table you can read, output is deterministic, and the claim is testable in one command:
+
+```bash
+python tools/verify.py   # pytest suite + multi-feedback hash probe
+```
+
+Before the fix, every feedback string produced the same MD5. See `FINDINGS.md`, Finding 001, for the autopsy and the resolution hashes.
+
 ## Run it
 
 Requires Python 3.12 and pydantic.

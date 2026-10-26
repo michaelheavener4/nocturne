@@ -40,3 +40,27 @@ Engineering findings from building MUSE, written the way they were earned: by te
 **The fix (current build):** the planner upgrade. The brief must drive generation: seeds derived from key and mode, density and register driven by the emotional dimensions, and a refinement path that takes the previous `ArrangementPlan` plus feedback as inputs and produces measurably different notes. Acceptance test is the same hash method inverted: same brief + different feedback must yield different MD5s, and each claimed change (thinner bass, darker harmony) must be visible in the note data, not just the rationale text.
 
 **Lesson:** if a system claims to respond to feedback, hash the output and vary the feedback. Anything less is reviewing the demo, not the system.
+
+---
+
+## Finding 001 — RESOLVED (2026-10-26)
+
+The planner upgrade described above shipped, built as a multi-agent fleet exercise on a second machine (Omarchy Linux) and merged only after passing a purpose-built verification gate.
+
+**What changed:**
+- `intent.py` gained `parse_feedback`: recognized revision phrases map to signed dimensions (energy, density, brightness, tension, length), each bounded to −1/0/+1. Conflicting directions cancel; wording repetition changes nothing. The mapping is a readable table, not a model call.
+- `arrangement.py` now consumes those dimensions in the plan: register, note density, velocity, and section/final-bar changes follow the parsed feedback. Output stays deterministic — same brief + same feedback, same bytes.
+- No-feedback generation is byte-identical to the v1 baseline: the fix changed what feedback does, not what silence does.
+
+**Verification (the same hash method, inverted):** the merge gate (`tools/verify.py`: pytest suite + multi-feedback hash probe) was written FIRST, by a different agent on a free model, and failed against the old code exactly as designed (3 feedback variants, 1 hash). After the fix, on `main`:
+
+| Feedback (prompt: "dark and tense, 92 bpm") | MD5 |
+|---|---|
+| none | `677dcf582ad908e00570f4b058e263da` (baseline, unchanged) |
+| "make the bass less busy and let the notes ring" | `84cf556a302aa2c805e2440d18446bab` |
+| "take it darker and move the harmony into a lower register" | `b1604267a0ee778e9e12c1e00cc2d51b` |
+| "thin out the drums, add space, and write a new final-bar motif" | `f6791b973d7c4503d85388cae5a9fc05` |
+
+One result worth pausing on: the "less busy bass" output is byte-identical to Track 001 v1 (`84cf556a…`) — a revision that originally took human-directed scripting. The agent's own feedback loop now produces it.
+
+**Process note:** three coding agents (different vendors, different models) worked the same repo in parallel worktrees, one writer per file set, with this gate as the only road to `main`. The gate caught nothing the second time because it had already caught everything the first time. That is what gates are for.
