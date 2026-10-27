@@ -32,7 +32,7 @@ POP_PROMPT = "bright and playful pop song, C major, 120 bpm"
 
 # The published eight-bar demo baseline from FINDINGS.md. A full song must not
 # collapse back onto this sketch.
-DEMO_BASELINE_MD5 = "aaf9da4b9d5a3332e256d10edbc91b86"
+DEMO_BASELINE_MD5 = "91c023a806e8b839ae686232e1709ff1"  # was aaf9da4b under the MUSE name; track names are in the MIDI, so the 2026-10-26 NOCTURNE rename moved it
 
 EDM_ROLES = (
     "intro",
