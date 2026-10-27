@@ -112,7 +112,7 @@ class TasteStore:
         questions = [
             "Are the tracks you revisit for their vocal melodies, their production texture, or both?",
             "When a repeated track is played in the background, should it count as a strong preference signal?",
-            "Do you want MUSE to favor familiar sonic qualities or deliberately contrast them?",
+            "Do you want NOCTURNE to favor familiar sonic qualities or deliberately contrast them?",
             "Which matters more in your favorite music: groove, harmony, sound design, or arrangement arc?",
             "Are any recurring artists or channels useful only as references, rather than sounds to emulate?",
         ]

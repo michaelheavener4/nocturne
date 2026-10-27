@@ -31,7 +31,7 @@ def run_session(
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = str(REPO_ROOT / "src") + (os.pathsep + existing if existing else "")
 
-    command = [sys.executable, "-m", "muse", "session", "--data", str(data_dir)]
+    command = [sys.executable, "-m", "nocturne", "session", "--data", str(data_dir)]
     if offline:
         command.append("--offline")
     for text in says:
@@ -47,7 +47,7 @@ def run_session(
     )
     if result.returncode != 0:
         raise AssertionError(
-            f"muse session failed (exit {result.returncode})\n"
+            f"nocturne session failed (exit {result.returncode})\n"
             f"command: {' '.join(command)}\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
@@ -149,11 +149,11 @@ def test_feedback_accumulates_across_revise_rounds(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(
-    os.environ.get("MUSE_LIVE_EVAL") != "1",
-    reason="set MUSE_LIVE_EVAL=1 to run the live provider smoke check",
+    os.environ.get("NOCTURNE_LIVE_EVAL") != "1",
+    reason="set NOCTURNE_LIVE_EVAL=1 to run the live provider smoke check",
 )
 def test_live_provider_smoke() -> None:
-    from muse.llm import OpenCodeProvider
+    from nocturne.llm import OpenCodeProvider
 
     result = OpenCodeProvider().interpret(CREATE_PROMPT)
     assert result.brief.intent

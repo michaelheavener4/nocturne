@@ -1,4 +1,6 @@
-# MUSE: Findings
+# NOCTURNE: Findings
+
+> Project renamed MUSE → NOCTURNE on 2026-10-26 (Meta's Muse collision). Entries keep the name in use when they were written.
 
 
 Engineering findings from building MUSE, written the way they were earned: by testing the system against its own claims.

@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "muse"
+name = "nocturne"
 version = "0.1.0"
 description = "Local-first agentic music studio: plain-language briefs to editable MIDI, with an Ableton Live bridge"
 readme = "README.md"
@@ -16,7 +16,7 @@ dependencies = ["pydantic>=2", "numpy>=1.26"]
 dev = ["pytest>=7"]
 
 [project.scripts]
-muse = "muse.cli:main"
+nocturne = "nocturne.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

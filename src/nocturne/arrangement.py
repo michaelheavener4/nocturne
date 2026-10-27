@@ -113,17 +113,17 @@ class ArrangementPlanner:
         if re.search(r"\bfinal[- ]bar\b", feedback.lower()) and re.search(r"\b(motif|melody|variation)\b", feedback.lower()):
             melody_notes += [Note(pitch=pitch(4, 5 + register) + brightness * 5, start=(bars - 1) * 4 + 2.5, duration=.45, velocity=max(1, min(127, 84 + 15 * energy)))]
         tracks = [
-            TrackPlan(name="MUSE Drums", role="drums", instrument="Ableton Core Kit", notes=_repeat(drum_seed, bars)),
-            TrackPlan(name="MUSE Bass", role="bass", instrument="Operator", notes=_repeat(bass_seed, bars)),
-            TrackPlan(name="MUSE Atmosphere", role="harmony", instrument="Wavetable", notes=_repeat(harmony_seed, bars)),
-            TrackPlan(name="MUSE Motif", role="melody", instrument="Operator", notes=melody_notes),
+            TrackPlan(name="NOCTURNE Drums", role="drums", instrument="Ableton Core Kit", notes=_repeat(drum_seed, bars)),
+            TrackPlan(name="NOCTURNE Bass", role="bass", instrument="Operator", notes=_repeat(bass_seed, bars)),
+            TrackPlan(name="NOCTURNE Atmosphere", role="harmony", instrument="Wavetable", notes=_repeat(harmony_seed, bars)),
+            TrackPlan(name="NOCTURNE Motif", role="melody", instrument="Operator", notes=melody_notes),
         ]
         if previous is not None:
             prior = {track.role: track for track in previous.tracks}
             for track in tracks:
                 if track.role in frozen and track.role in prior:
                     track.notes = [note.model_copy(deep=True) for note in prior[track.role].notes]
-        return ArrangementPlan(title="MUSE eight-bar sketch" if bars == 8 else f"MUSE {bars}-bar sketch", tempo=tempo, bars=bars, key=key, tracks=tracks,
+        return ArrangementPlan(title="NOCTURNE eight-bar sketch" if bars == 8 else f"NOCTURNE {bars}-bar sketch", tempo=tempo, bars=bars, key=key, tracks=tracks,
                                rationale=["Low register anchors the pulse.", "Sustained harmony leaves room for the motif.", "Final-bar variation can be added during refinement."])
 
     def song(self, brief: CreativeBrief) -> ArrangementPlan:
@@ -228,8 +228,8 @@ class ArrangementPlanner:
                     notes = [tracks["melody"][-1]]
                 signature = tuple((n.pitch, n.start - absolute * 4, n.duration) for n in notes)
             previous_bars.append(signature)
-        parts = [("drums", "MUSE Drums", "Ableton Core Kit"), ("bass", "MUSE Bass", "Operator"),
-                 ("harmony", "MUSE Atmosphere", "Wavetable"), ("melody", "MUSE Motif", "Operator")]
-        return ArrangementPlan(title="MUSE song", tempo=float(brief.musical_constraints.get("tempo_bpm", 120)), bars=bar, key=key,
+        parts = [("drums", "NOCTURNE Drums", "Ableton Core Kit"), ("bass", "NOCTURNE Bass", "Operator"),
+                 ("harmony", "NOCTURNE Atmosphere", "Wavetable"), ("melody", "NOCTURNE Motif", "Operator")]
+        return ArrangementPlan(title="NOCTURNE song", tempo=float(brief.musical_constraints.get("tempo_bpm", 120)), bars=bar, key=key,
                                form=form, tracks=[TrackPlan(name=name, role=role, instrument=instrument, notes=tracks[role]) for role, name, instrument in parts],
                                rationale=["Section energy shapes register, velocity and density.", "Harmony follows a diatonic four-chord progression."])

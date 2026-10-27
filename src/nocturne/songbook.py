@@ -1,4 +1,4 @@
-# src/muse/songbook.py
+# src/nocturne/songbook.py
 
 PROGRESSIONS = {
     "minor": [

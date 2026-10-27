@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MUSE merge gate: pytest plus explicit MIDI truth probes.
+"""NOCTURNE merge gate: pytest plus explicit MIDI truth probes.
 
 Usage:
     python tools/verify.py
@@ -77,7 +77,7 @@ def _run_demo(
     command = [
         sys.executable,
         "-m",
-        "muse",
+        "nocturne",
         "demo",
         "--prompt",
         prompt,
@@ -116,7 +116,7 @@ def _run_session(
     command = [
         sys.executable,
         "-m",
-        "muse",
+        "nocturne",
         "session",
         "--data",
         str(data_dir),
@@ -178,7 +178,7 @@ def run_session_ledger_probe() -> bool:
     print("== session ledger probe ==")
     says = [SESSION_CREATE_PROMPT, SESSION_REVISE_DARKER, SESSION_REVISE_THIN_DRUMS]
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-session-ledger-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-session-ledger-") as tmp:
             result, data_dir = _run_session(Path(tmp), says)
             rounds = _session_ledger(data_dir)
             if [record["n"] for record in rounds] != [0, 1, 2]:
@@ -225,7 +225,7 @@ def run_session_ledger_probe() -> bool:
 def run_session_preservation_probe() -> bool:
     print("== session preservation probe ==")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-session-preserve-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-session-preserve-") as tmp:
             _, data_dir = _run_session(
                 Path(tmp), [SESSION_CREATE_PROMPT, SESSION_PRESERVE_BASS]
             )
@@ -264,7 +264,7 @@ def run_session_preservation_probe() -> bool:
 def run_session_accumulation_probe() -> bool:
     print("== session accumulation probe ==")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-session-accumulate-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-session-accumulate-") as tmp:
             _, data_dir = _run_session(
                 Path(tmp),
                 [SESSION_CREATE_PROMPT, SESSION_REVISE_DARKER, SESSION_REVISE_THIN_DRUMS],
@@ -292,7 +292,7 @@ def run_hash_probe() -> bool:
     print("== multi-feedback hash probe ==")
     print(f"prompt: {PROMPT}")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-verify-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-verify-") as tmp:
             results = [_run_demo(Path(tmp), feedback) for feedback in FEEDBACKS]
     except Exception as exc:  # noqa: BLE001 - report, then fail the gate
         print(f"PROBE ERROR: {exc}")
@@ -321,7 +321,7 @@ def run_hash_probe() -> bool:
 def run_prompt_sensitivity_probe() -> bool:
     print("== prompt sensitivity probe ==")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-prompt-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-prompt-") as tmp:
             dark = _run_demo(Path(tmp) / "dark", prompt=DARK_PROMPT)
             bright = _run_demo(Path(tmp) / "bright", prompt=BRIGHT_PROMPT)
     except Exception as exc:  # noqa: BLE001 - report, then fail the gate
@@ -348,7 +348,7 @@ def run_key_truth_probe() -> bool:
     print("== key truth probe ==")
     prompts = (DARK_PROMPT, BRIGHT_PROMPT, KEY_VARIANT_PROMPT)
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-key-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-key-") as tmp:
             results = {
                 prompt: _run_demo(Path(tmp) / str(index), prompt=prompt)
                 for index, prompt in enumerate(prompts)
@@ -396,7 +396,7 @@ def run_key_truth_probe() -> bool:
 def run_determinism_probe() -> bool:
     print("== determinism probe ==")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-determinism-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-determinism-") as tmp:
             first = _run_demo(Path(tmp) / "first", prompt=DARK_PROMPT)
             repeat = _run_demo(Path(tmp) / "repeat", prompt=DARK_PROMPT)
     except Exception as exc:  # noqa: BLE001 - report, then fail the gate
@@ -416,7 +416,7 @@ def run_determinism_probe() -> bool:
 def run_song_form_probe() -> bool:
     print("== song form probe ==")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-song-form-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-song-form-") as tmp:
             for label, template in TEMPLATES.items():
                 render = run_song(Path(tmp), template["prompt"], label=label)
                 report = form_audit(
@@ -443,7 +443,7 @@ def run_song_form_probe() -> bool:
 def run_song_key_probe() -> bool:
     print("== song key truth probe ==")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-song-key-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-song-key-") as tmp:
             for label, template in TEMPLATES.items():
                 render = run_song(Path(tmp), template["prompt"], label=label)
                 report = key_audit(render)
@@ -473,7 +473,7 @@ def run_song_key_probe() -> bool:
 def run_song_melody_probe() -> bool:
     print("== song melody variation probe ==")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-song-melody-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-song-melody-") as tmp:
             for label, template in TEMPLATES.items():
                 render = run_song(Path(tmp), template["prompt"], label=label)
                 report = melody_audit(render)
@@ -497,7 +497,7 @@ def run_song_melody_probe() -> bool:
 def run_song_transition_probe() -> bool:
     print("== song transition probe ==")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-song-transition-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-song-transition-") as tmp:
             for label, template in TEMPLATES.items():
                 render = run_song(Path(tmp), template["prompt"], label=label)
                 print(f"  {render.md5}  {template['prompt']}")
@@ -526,7 +526,7 @@ def run_song_transition_probe() -> bool:
 def run_song_determinism_probe() -> bool:
     print("== song determinism probe ==")
     try:
-        with tempfile.TemporaryDirectory(prefix="muse-song-determinism-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="nocturne-song-determinism-") as tmp:
             first = run_song(Path(tmp), EDM_PROMPT, label="first")
             repeat = run_song(Path(tmp), EDM_PROMPT, label="repeat")
             report = determinism_audit(first, repeat)

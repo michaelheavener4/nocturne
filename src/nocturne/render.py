@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 # Arch soundfont-fluid installs FluidR3 here. Debian's fluid-soundfont-gm
-# uses a different path; point MUSE_SOUNDFONT at it or copy the file into
+# uses a different path; point NOCTURNE_SOUNDFONT at it or copy the file into
 # the user soundfont directory.
 SYSTEM_SOUNDFONT = Path("/usr/share/soundfonts/FluidR3_GM.sf2")
 
@@ -30,7 +30,12 @@ class RenderedWav(NamedTuple):
 
 
 def user_soundfont_dir() -> Path:
-    return Path.home() / ".local" / "share" / "muse" / "soundfonts"
+    return Path.home() / ".local" / "share" / "nocturne" / "soundfonts"
+
+
+def _legacy_soundfont_dir() -> Path:
+    # Pre-rename installs (when the project was called MUSE) put fonts here.
+    return Path.home() / ".local" / "share" / "nocturne" / "soundfonts"
 
 
 def _soundfont_install_message(prefix: str) -> str:
@@ -38,7 +43,7 @@ def _soundfont_install_message(prefix: str) -> str:
     return (
         f"{prefix} Install soundfont-fluid (Arch; provides {SYSTEM_SOUNDFONT}) "
         "or fluid-soundfont-gm (Debian/Ubuntu), "
-        f"place a .sf2 file in {directory}/, or set MUSE_SOUNDFONT."
+        f"place a .sf2 file in {directory}/, or set NOCTURNE_SOUNDFONT."
     )
 
 
@@ -54,7 +59,7 @@ def _existing_file(path: Path) -> Path | None:
 def resolve_soundfont(explicit: str | Path | None = None) -> Path:
     """First existing SoundFont wins.
 
-    Order: --soundfont, $MUSE_SOUNDFONT, any *.sf2 under the user soundfont
+    Order: --soundfont, $NOCTURNE_SOUNDFONT, any *.sf2 under the user soundfont
     directory, then the system FluidR3_GM file. An explicit path that does
     not exist is an error: falling through would play a different font.
     """
@@ -65,25 +70,25 @@ def resolve_soundfont(explicit: str | Path | None = None) -> Path:
             raise RenderError(_soundfont_install_message(f"SoundFont not found: {path}."))
         return found
 
-    env = os.environ.get("MUSE_SOUNDFONT", "").strip()
+    env = os.environ.get("NOCTURNE_SOUNDFONT", "").strip()
     if env:
         path = Path(env).expanduser()
         found = _existing_file(path)
         if found is None:
-            raise RenderError(_soundfont_install_message(f"MUSE_SOUNDFONT is not a SoundFont file: {path}."))
+            raise RenderError(_soundfont_install_message(f"NOCTURNE_SOUNDFONT is not a SoundFont file: {path}."))
         return found
 
-    directory = user_soundfont_dir()
-    if directory.is_dir():
-        try:
-            fonts = sorted(
-                (item for item in directory.rglob("*") if item.is_file() and item.suffix.lower() == ".sf2"),
-                key=lambda item: str(item).lower(),
-            )
-        except OSError:
-            fonts = []
-        if fonts:
-            return fonts[0]
+    for directory in (user_soundfont_dir(), _legacy_soundfont_dir()):
+        if directory.is_dir():
+            try:
+                fonts = sorted(
+                    (item for item in directory.rglob("*") if item.is_file() and item.suffix.lower() == ".sf2"),
+                    key=lambda item: str(item).lower(),
+                )
+            except OSError:
+                fonts = []
+            if fonts:
+                return fonts[0]
 
     found = _existing_file(SYSTEM_SOUNDFONT)
     if found is not None:
@@ -239,7 +244,7 @@ def render_midi(
     source = midi
     try:
         if tempo_bpm is not None:
-            fd, name = tempfile.mkstemp(prefix="muse-render-", suffix=".mid")
+            fd, name = tempfile.mkstemp(prefix="nocturne-render-", suffix=".mid")
             os.close(fd)
             temporary = Path(name)
             temporary.write_bytes(_midi_with_tempo(midi, float(tempo_bpm)))

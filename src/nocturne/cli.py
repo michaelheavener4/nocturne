@@ -23,9 +23,9 @@ def demo(args) -> int:
     if args.feedback: brief.intent += f" [feedback: {args.feedback}]"
     plan=ArrangementPlanner().plan(brief); adapter=AbletonBridgeAdapter() if args.live else MockDAW(root/"mock_daw")
     inspection=adapter.inspect(); execution=adapter.create_arrangement(plan)
-    midi=write_midi(plan, root/"projects"/"muse_sketch.mid"); report=analyze_arrangement(plan)
-    root.mkdir(parents=True, exist_ok=True); (root/"projects"/"muse_sketch.json").write_text(json.dumps({"brief":brief.model_dump(),"plan":plan.model_dump(),"inspection":inspection,"execution":execution,"analysis":report.model_dump()}, indent=2))
-    item_id=SoundMemory(root/"memory").store(MemoryItem(kind="arrangement",label="MUSE eight-bar sketch",description=brief.intent, path=str(midi),metadata={"tempo":plan.tempo,"key":plan.key}))
+    midi=write_midi(plan, root/"projects"/"nocturne_sketch.mid"); report=analyze_arrangement(plan)
+    root.mkdir(parents=True, exist_ok=True); (root/"projects"/"nocturne_sketch.json").write_text(json.dumps({"brief":brief.model_dump(),"plan":plan.model_dump(),"inspection":inspection,"execution":execution,"analysis":report.model_dump()}, indent=2))
+    item_id=SoundMemory(root/"memory").store(MemoryItem(kind="arrangement",label="NOCTURNE eight-bar sketch",description=brief.intent, path=str(midi),metadata={"tempo":plan.tempo,"key":plan.key}))
     payload={"question":brief.proposed_questions[0] if brief.proposed_questions else None,"assumptions":brief.assumptions,"execution":execution,"analysis":report.metrics,"memory_id":item_id,"midi":str(midi)}
     if args.render:
         try:
@@ -49,7 +49,7 @@ def song_command(args) -> int:
 
     The WAV is rendered at the plan tempo. A 44-bar song at 92 bpm is about
     115 seconds. A missing SoundFont or fluidsynth exits nonzero with the
-    same message muse render prints.
+    same message nocturne render prints.
     """
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -96,7 +96,7 @@ def live_demo(args) -> int:
     brief = IntentInterpreter().interpret(args.prompt)
     plan = ArrangementPlanner().plan(brief)
     adapter = AbletonBridgeAdapter()
-    report = {"workflow": "real-ableton-muse-disposable", "started_at": time.time()}
+    report = {"workflow": "real-ableton-nocturne-disposable", "started_at": time.time()}
     report["before"] = adapter.inspect()
     execution = adapter.create_arrangement(plan)
     report["creation"] = execution
@@ -106,7 +106,7 @@ def live_demo(args) -> int:
     if args.capture_audio:
         ear = Path(args.ear) if args.ear else None
         if ear is None or not ear.exists():
-            report["audio_capture"] = {"error": "ear tool not configured: pass --ear PATH or set MUSE_EAR_PATH"}
+            report["audio_capture"] = {"error": "ear tool not configured: pass --ear PATH or set NOCTURNE_EAR_PATH"}
         else:
             capture = subprocess.run([sys.executable, str(ear), "hear", str(args.capture_seconds), "--out", str(audio_out)], text=True, capture_output=True)
             report["audio_capture"] = {"returncode": capture.returncode, "stdout": capture.stdout, "stderr": capture.stderr, "path": str(audio_out)}
@@ -128,7 +128,7 @@ def live_demo(args) -> int:
 
 def create_session(args) -> int:
     session = CreativeSession(args.data, live=args.live, use_model=not args.offline)
-    print("MUSE interactive session. Type 'exit' to finish.")
+    print("NOCTURNE interactive session. Type 'exit' to finish.")
     if args.live:
         print("Live mode is active; only the current user-approved/disposable set may be changed.")
     while True:
@@ -169,15 +169,15 @@ def arrangement_command(args) -> int:
 
 
 def main(argv=None):
-    p=argparse.ArgumentParser(prog="muse"); sub=p.add_subparsers(dest="command",required=True)
+    p=argparse.ArgumentParser(prog="nocturne"); sub=p.add_subparsers(dest="command",required=True)
     d=sub.add_parser("demo"); d.add_argument("--prompt",required=True); d.add_argument("--feedback"); d.add_argument("--live",action="store_true"); d.add_argument("--render",action="store_true",help="after writing MIDI, render a sibling WAV with fluidsynth"); d.add_argument("--data",default="data"); d.set_defaults(func=demo)
     r=sub.add_parser("render", help="render a MIDI file to WAV with fluidsynth")
-    r.add_argument("midi"); r.add_argument("--out", help="WAV path (default: sibling .wav)"); r.add_argument("--soundfont", help="SoundFont .sf2 (else $MUSE_SOUNDFONT, ~/.local/share/muse/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)"); r.set_defaults(func=render_command)
+    r.add_argument("midi"); r.add_argument("--out", help="WAV path (default: sibling .wav)"); r.add_argument("--soundfont", help="SoundFont .sf2 (else $NOCTURNE_SOUNDFONT, ~/.local/share/nocturne/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)"); r.set_defaults(func=render_command)
     s=sub.add_parser("song", help="write a full song (edm 44 bars, pop 56) and optionally render it")
     s.add_argument("--prompt", required=True)
     s.add_argument("--out", default="data/song", help="directory for song.mid, song.json, and song.wav")
     s.add_argument("--render", action="store_true", help="render song.wav with fluidsynth at the plan tempo")
-    s.add_argument("--soundfont", help="SoundFont .sf2 (else $MUSE_SOUNDFONT, ~/.local/share/muse/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)")
+    s.add_argument("--soundfont", help="SoundFont .sf2 (else $NOCTURNE_SOUNDFONT, ~/.local/share/nocturne/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)")
     s.set_defaults(func=song_command)
     h=sub.add_parser("transcribe-hum"); h.add_argument("wav"); h.add_argument("--output",default="data/hums/melody.mid"); h.set_defaults(func=hum)
     m=sub.add_parser("memory-search"); m.add_argument("query"); m.add_argument("--data",default="data"); m.set_defaults(func=lambda a: print(json.dumps(SoundMemory(Path(a.data)/"memory").search(a.query),indent=2)) or 0)
@@ -188,10 +188,10 @@ def main(argv=None):
     ld.add_argument("--prompt", default="A tense, nocturnal pulse with glassy pads")
     ld.add_argument("--data", default="data/live-test")
     ld.add_argument("--capture-audio", action="store_true")
-    ld.add_argument("--ear", default=os.environ.get("MUSE_EAR_PATH"), help="path to an external ear.py capture tool")
+    ld.add_argument("--ear", default=os.environ.get("NOCTURNE_EAR_PATH"), help="path to an external ear.py capture tool")
     ld.add_argument("--capture-seconds", type=float, default=4.0)
-    ld.add_argument("--audio-out", default="data/live-test/muse-capture.wav")
-    ld.add_argument("--expected-live-set", default="data/live-test/MUSE_Disposable Project/MUSE_Disposable.als")
+    ld.add_argument("--audio-out", default="data/live-test/nocturne-capture.wav")
+    ld.add_argument("--expected-live-set", default="data/live-test/NOCTURNE_Disposable Project/NOCTURNE_Disposable.als")
     ld.set_defaults(func=live_demo)
     c=sub.add_parser("create", help="interactive creative session")
     c.add_argument("--data", default="data/session")

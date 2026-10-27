@@ -1,11 +1,11 @@
 {
-  "title": "MUSE eight-bar sketch",
+  "title": "NOCTURNE eight-bar sketch",
   "tempo": 92.0,
   "bars": 8,
   "key": "A minor",
   "tracks": [
     {
-      "name": "MUSE Drums",
+      "name": "NOCTURNE Drums",
       "role": "drums",
       "instrument": "Ableton Core Kit",
       "notes": [
@@ -349,7 +349,7 @@
       "approved": false
     },
     {
-      "name": "MUSE Bass",
+      "name": "NOCTURNE Bass",
       "role": "bass",
       "instrument": "Operator",
       "notes": [
@@ -581,7 +581,7 @@
       "approved": false
     },
     {
-      "name": "MUSE Atmosphere",
+      "name": "NOCTURNE Atmosphere",
       "role": "harmony",
       "instrument": "Wavetable",
       "notes": [
@@ -757,7 +757,7 @@
       "approved": false
     },
     {
-      "name": "MUSE Motif",
+      "name": "NOCTURNE Motif",
       "role": "melody",
       "instrument": "Operator",
       "notes": [

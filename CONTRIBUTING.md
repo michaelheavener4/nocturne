@@ -15,7 +15,7 @@ pip install -e ".[dev]"
 ## Demo
 
 ```bash
-muse demo --prompt "dark and tense, 92 bpm"
+nocturne demo --prompt "dark and tense, 92 bpm"
 ```
 
 That runs the offline pipeline (mock DAW) and writes:
@@ -35,4 +35,4 @@ python tools/verify.py
 
 That is the merge gate. It runs `pytest` on `tests/`, then a multi-feedback MIDI hash probe. It prints every probe hash and exits 0 only when the suite passes and the hashes are distinct.
 
-`.github/workflows/ci.yml` runs on push and pull request. Each Python version installs with `pip install -e .`, runs pytest when `tests/` is in the tree, and checks that `muse demo --prompt "ci smoke"` writes a MIDI file.
+`.github/workflows/ci.yml` runs on push and pull request. Each Python version installs with `pip install -e .`, runs pytest when `tests/` is in the tree, and checks that `nocturne demo --prompt "ci smoke"` writes a MIDI file.

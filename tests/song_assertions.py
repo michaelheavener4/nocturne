@@ -1,6 +1,6 @@
 """Truth probes for full-song output (Gate v4).
 
-The helpers here read the ``muse song`` artifact pair directly: ``song.json``
+The helpers here read the ``nocturne song`` artifact pair directly: ``song.json``
 is the ArrangementPlan dump and ``song.mid`` is the rendered file. Nothing in
 this module calls a model or an external MIDI library, so the same probes run
 offline and deterministically.
@@ -77,13 +77,13 @@ class SongRender:
 
 
 def run_song(workdir: Path, prompt: str, *, label: str = "song") -> SongRender:
-    """Run ``muse song`` offline and return the artifact pair plus stdout."""
+    """Run ``nocturne song`` offline and return the artifact pair plus stdout."""
     out_dir = workdir / label
     out_dir.mkdir(parents=True, exist_ok=True)
     command = [
         sys.executable,
         "-m",
-        "muse",
+        "nocturne",
         "song",
         "--prompt",
         prompt,
@@ -105,7 +105,7 @@ def run_song(workdir: Path, prompt: str, *, label: str = "song") -> SongRender:
     )
     if result.returncode != 0:
         raise AssertionError(
-            f"muse song failed for prompt={prompt!r} (exit {result.returncode})\n"
+            f"nocturne song failed for prompt={prompt!r} (exit {result.returncode})\n"
             f"command: {' '.join(command)}\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
@@ -114,11 +114,11 @@ def run_song(workdir: Path, prompt: str, *, label: str = "song") -> SongRender:
     plan_path = out_dir / "song.json"
     if not midi_path.is_file():
         raise AssertionError(
-            f"muse song did not write {midi_path}\nstdout:\n{result.stdout}"
+            f"nocturne song did not write {midi_path}\nstdout:\n{result.stdout}"
         )
     if not plan_path.is_file():
         raise AssertionError(
-            f"muse song did not write {plan_path}\nstdout:\n{result.stdout}"
+            f"nocturne song did not write {plan_path}\nstdout:\n{result.stdout}"
         )
 
     midi_bytes = midi_path.read_bytes()
@@ -681,7 +681,7 @@ def determinism_audit(first: SongRender, repeat: SongRender) -> dict:
         )
     if first.md5 not in first.stdout:
         raise AssertionError(
-            f"muse song did not print its md5 {first.md5} in stdout:\n{first.stdout}"
+            f"nocturne song did not print its md5 {first.md5} in stdout:\n{first.stdout}"
         )
     return {
         "prompt": first.prompt,

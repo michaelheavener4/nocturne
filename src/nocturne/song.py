@@ -4,7 +4,7 @@ The song planner itself is ArrangementPlanner.song (Stream A4):
 form templates (edm 44 bars, pop 56), progression harmony, developing
 melody, transitions. This module only decides whether a create
 request is asking for a full song, and delegates planning to that
-planner, so `muse song` and a song-shaped session create share one
+planner, so `nocturne song` and a song-shaped session create share one
 definition of "song request" and one planning entry point.
 
 History: Stream C4 originally shipped a fallback planner here behind

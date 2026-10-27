@@ -110,7 +110,7 @@ class CreativeSession:
 
     def _live_tracks(self) -> dict[str, int]:
         snapshot = self.adapter.inspect()
-        return {t["name"]: t["index"] for t in snapshot.get("tracks", []) if t.get("name", "").startswith("MUSE ")}
+        return {t["name"]: t["index"] for t in snapshot.get("tracks", []) if t.get("name", "").startswith("NOCTURNE ")}
 
     def handle(self, text: str) -> dict:
         started = time.perf_counter(); self.context.append(text)
@@ -182,7 +182,7 @@ class CreativeSession:
         if self.live:
             existing = self._live_tracks()
             if existing:
-                self.track_indices = {"drums": existing.get("MUSE Drums", -1), "bass": existing.get("MUSE Bass", -1), "harmony": existing.get("MUSE Atmosphere", -1), "melody": existing.get("MUSE Motif", -1)}
+                self.track_indices = {"drums": existing.get("NOCTURNE Drums", -1), "bass": existing.get("NOCTURNE Bass", -1), "harmony": existing.get("NOCTURNE Atmosphere", -1), "melody": existing.get("NOCTURNE Motif", -1)}
                 execution = {"status": "reused_existing_muse_tracks", "tracks": existing, "verified": True}
             else:
                 execution = self.adapter.create_arrangement(self.plan)
@@ -196,10 +196,10 @@ class CreativeSession:
 
     def _source_tracks(self) -> dict[str, int]:
         tracks = self.track_indices or self._live_tracks()
-        return {"drums": tracks.get("drums", tracks.get("MUSE Drums", -1)),
-                "bass": tracks.get("bass", tracks.get("MUSE Bass", -1)),
-                "harmony": tracks.get("harmony", tracks.get("MUSE Atmosphere", -1)),
-                "melody": tracks.get("melody", tracks.get("MUSE Motif", -1))}
+        return {"drums": tracks.get("drums", tracks.get("NOCTURNE Drums", -1)),
+                "bass": tracks.get("bass", tracks.get("NOCTURNE Bass", -1)),
+                "harmony": tracks.get("harmony", tracks.get("NOCTURNE Atmosphere", -1)),
+                "melody": tracks.get("melody", tracks.get("NOCTURNE Motif", -1))}
 
     def _create_variations(self) -> dict:
         source = {role: index for role, index in self._source_tracks().items() if index >= 0}
@@ -250,7 +250,7 @@ class CreativeSession:
 
     def _revise_bass(self) -> dict:
         if self.live:
-            bass = self.track_indices.get("bass", self._live_tracks().get("MUSE Bass", -1)); drums = self.track_indices.get("drums", self._live_tracks().get("MUSE Drums", -1))
+            bass = self.track_indices.get("bass", self._live_tracks().get("NOCTURNE Bass", -1)); drums = self.track_indices.get("drums", self._live_tracks().get("NOCTURNE Drums", -1))
             before_drums = self.adapter._call("get_clip_notes", {"track_index": drums, "clip_index": 0})
             revision = self.adapter.revise_bass(bass, 8)
             after_drums = self.adapter._call("get_clip_notes", {"track_index": drums, "clip_index": 0})
@@ -269,7 +269,7 @@ class CreativeSession:
     def _arrangement_mode(self) -> dict:
         if not self.live:
             return {"status": "planned", "mode": "arrangement", "location": "Arrangement timeline", "sections":["intro","verse","chorus","outro"]}
-        tracks = self.track_indices or {"drums": self._live_tracks().get("MUSE Drums", -1), "bass": self._live_tracks().get("MUSE Bass", -1), "harmony": self._live_tracks().get("MUSE Atmosphere", -1), "melody": self._live_tracks().get("MUSE Motif", -1)}
+        tracks = self.track_indices or {"drums": self._live_tracks().get("NOCTURNE Drums", -1), "bass": self._live_tracks().get("NOCTURNE Bass", -1), "harmony": self._live_tracks().get("NOCTURNE Atmosphere", -1), "melody": self._live_tracks().get("NOCTURNE Motif", -1)}
         tracks = {k:v for k,v in tracks.items() if v >= 0}
         result = self.adapter.arrangement_mode(tracks, [("intro",0.0),("verse",32.0),("chorus",64.0),("outro",96.0)])
         result["status"] = "created" if result["verified"] else "error"
@@ -278,7 +278,7 @@ class CreativeSession:
 
     def _mechanical_sound(self) -> dict:
         if not self.live: return {"status": "planned", "element": "synth character", "action": "mechanical oscillator waveform and tighter articulation"}
-        index = self.track_indices.get("bass", self._live_tracks().get("MUSE Bass", -1))
+        index = self.track_indices.get("bass", self._live_tracks().get("NOCTURNE Bass", -1))
         params = self.adapter._call("get_device_parameters", {"track_index": index, "device_index": 0}).get("parameters", [])
         names = {p["name"]: p for p in params}
         changed = []
@@ -291,11 +291,11 @@ class CreativeSession:
     def _save_preset(self, text: str) -> dict:
         match = re.search(r"(?:as|called)\s+(.+)$", text, re.I); label = (match.group(1).strip() if match else "favorite bass")
         if self.live:
-            index = self.track_indices.get("bass", self._live_tracks().get("MUSE Bass", -1)); state = {"track_index": index, "device_state": self.adapter._device_state(index)}
+            index = self.track_indices.get("bass", self._live_tracks().get("NOCTURNE Bass", -1)); state = {"track_index": index, "device_state": self.adapter._device_state(index)}
         else:
             state = {"plan": self.plan.model_dump() if self.plan else {}}
         path = self.root / "presets" / (re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_") + ".json"); path.parent.mkdir(parents=True, exist_ok=True); path.write_text(json.dumps(state, indent=2))
-        item = self.memory.store(MemoryItem(kind="preset", label=label, description="Approved MUSE session preset", path=str(path), metadata={"source":"live-device-state" if self.live else "mock-plan"}))
+        item = self.memory.store(MemoryItem(kind="preset", label=label, description="Approved NOCTURNE session preset", path=str(path), metadata={"source":"live-device-state" if self.live else "mock-plan"}))
         return {"status": "saved", "label": label, "memory_id": item, "path": str(path), "exact_state_saved": True}
 
     def _recall_preset(self, text: str) -> dict:
@@ -305,7 +305,7 @@ class CreativeSession:
         path = matches[0]["path"]
         if self.live and path and Path(path).is_file():
             state = json.loads(Path(path).read_text())
-            index = self.track_indices.get("bass", self._live_tracks().get("MUSE Bass", -1))
+            index = self.track_indices.get("bass", self._live_tracks().get("NOCTURNE Bass", -1))
             applied = []
             for device in state.get("device_state", []):
                 for param in (device.get("parameters") or {}).get("parameters", []):

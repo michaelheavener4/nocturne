@@ -21,7 +21,7 @@ def run_demo(
     command = [
         sys.executable,
         "-m",
-        "muse",
+        "nocturne",
         "demo",
         "--prompt",
         prompt,

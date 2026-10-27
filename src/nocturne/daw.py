@@ -76,8 +76,8 @@ class AbletonBridgeAdapter:
 
     def create_arrangement(self, plan: ArrangementPlan) -> dict:
         before = self.inspect()
-        if any(t.get("name", "").startswith("MUSE ") for t in before.get("tracks", [])):
-            raise RuntimeError("MUSE tracks already exist; refusing to append a duplicate arrangement")
+        if any(t.get("name", "").startswith("NOCTURNE ") for t in before.get("tracks", [])):
+            raise RuntimeError("NOCTURNE tracks already exist; refusing to append a duplicate arrangement")
         created = []
         for track in plan.tracks:
             index = self._call("create_midi_track", {"index": -1}).get("index", -1)
@@ -90,7 +90,7 @@ class AbletonBridgeAdapter:
                 uri, loaded_name = self._choose_uri("Operator", "instruments")
             self._call("load_browser_item", {"track_index": index, "item_uri": uri})
             self._call("create_clip", {"track_index": index, "clip_index": 0, "length": plan.bars * 4})
-            self._call("set_clip_name", {"track_index": index, "clip_index": 0, "name": f"MUSE {track.role} 8 bars"})
+            self._call("set_clip_name", {"track_index": index, "clip_index": 0, "name": f"NOCTURNE {track.role} 8 bars"})
             notes = [{"pitch":n.pitch,"start_time":n.start,"duration":n.duration,"velocity":n.velocity} for n in track.notes]
             self._call("add_notes_to_clip", {"track_index":index,"clip_index":0,"notes":notes})
             created.append({"index": index, "role": track.role, "name": track.name, "instrument": loaded_name})
@@ -142,7 +142,7 @@ class AbletonBridgeAdapter:
         """Copy existing Session clips to Arrangement using Live 11/12's supported API."""
         before = {role: self.arrangement_clips(index) for role, index in track_indices.items()}
         if any(item.get("clip_count", 0) for item in before.values()):
-            raise RuntimeError("Arrangement already contains MUSE clips; refusing duplicate placement")
+            raise RuntimeError("Arrangement already contains NOCTURNE clips; refusing duplicate placement")
         placed = []
         for name, destination in sections:
             for role, index in track_indices.items():
@@ -189,7 +189,7 @@ class AbletonBridgeAdapter:
         for variation in range(1, count + 1):
             tracks = {}
             for role, source_index in source_tracks.items():
-                expected_name = f"MUSE Dark {variation} {role.title()}"
+                expected_name = f"NOCTURNE Dark {variation} {role.title()}"
                 if expected_name in existing_by_name:
                     tracks[role] = existing_by_name[expected_name]
                     continue

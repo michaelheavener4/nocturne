@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from midi_assertions import assert_valid_midi
-from muse.midi import write_midi
-from muse.models import ArrangementPlan, TrackPlan
+from nocturne.midi import write_midi
+from nocturne.models import ArrangementPlan, TrackPlan
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 BASE_PLAN_PATH = FIXTURES / "track001_base_plan.json"
@@ -99,7 +99,7 @@ def test_track001_known_hash(revision: str, tmp_path: Path) -> None:
 
 def test_fixture_still_parses_as_the_published_plan_shape() -> None:
     plan = ArrangementPlan(**_base_plan())
-    assert plan.title == "MUSE eight-bar sketch"
+    assert plan.title == "NOCTURNE eight-bar sketch"
     assert plan.tempo == 92.0
     assert plan.key == "A minor"
     assert {track.role for track in plan.tracks} == {"drums", "bass", "harmony", "melody"}

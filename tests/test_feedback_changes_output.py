@@ -25,7 +25,7 @@ def _run_demo(workdir: Path, feedback: str) -> tuple[str, str, bytes]:
     command = [
         sys.executable,
         "-m",
-        "muse",
+        "nocturne",
         "demo",
         "--prompt",
         PROMPT,

@@ -155,7 +155,7 @@ class OpenCodeProvider:
     interpret() does not raise when the provider fails. The brief then comes from
     IntentInterpreter, provider is deterministic-fallback, and error carries the cause.
 
-    If MUSE_LLM_FIXTURE points at a JSON CreativeBrief dump, interpret() returns
+    If NOCTURNE_LLM_FIXTURE points at a JSON CreativeBrief dump, interpret() returns
     that brief with provider "fixture" and does not call opencode. A fixture that
     cannot be read or validated falls back the same way, still without opencode.
     """
@@ -164,14 +164,14 @@ class OpenCodeProvider:
         self.cwd = cwd
         self.timeout = timeout
         self.router = OpenCodeModelRouter(timeout=discover_timeout)
-        self.requested_model = model or os.environ.get("MUSE_MODEL")
+        self.requested_model = model or os.environ.get("NOCTURNE_MODEL")
 
     def availability(self) -> dict[str, list[str]]:
         self.router.discover()
         return self.router.catalog
 
     def interpret(self, text: str, context: list[str] | None = None, complexity: str = "routine") -> ModelResult:
-        fixture = os.environ.get("MUSE_LLM_FIXTURE", "").strip()
+        fixture = os.environ.get("NOCTURNE_LLM_FIXTURE", "").strip()
         if fixture:
             return self._interpret_fixture(fixture, text)
         started = time.perf_counter()
@@ -287,7 +287,7 @@ def _elapsed_ms(started: float) -> float:
 
 
 def _prompt(text: str, context: list[str] | None) -> str:
-    return f"""You are MUSE, a conservative creative music assistant. Translate the artist's request into ONLY one JSON object matching this schema:
+    return f"""You are NOCTURNE, a conservative creative music assistant. Translate the artist's request into ONLY one JSON object matching this schema:
 {{"intent": string, "emotional_dimensions": {{string: number}}, "musical_constraints": {{string: string|number}}, "sonic_references": [string], "arrangement_goals": [string], "uncertainty": [string], "assumptions": [string], "proposed_questions": [string, max one], "proposed_execution_plan": [string], "taste_prior": {{}}}}
 Use questions only when an ambiguity materially changes the musical result. Never claim audio was analyzed. Keep project-specific intent authoritative.
 Conversation context: {json.dumps(context or [])}
