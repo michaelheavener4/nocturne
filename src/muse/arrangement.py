@@ -23,7 +23,7 @@ def _scale(key: str) -> tuple[int, tuple[int, ...]]:
 
 
 class ArrangementPlanner:
-    def plan(self, brief: CreativeBrief) -> ArrangementPlan:
+    def plan(self, brief: CreativeBrief, previous: ArrangementPlan | None = None, frozen: frozenset[str] = frozenset()) -> ArrangementPlan:
         tempo = float(brief.musical_constraints.get("tempo_bpm", 120))
         key = str(brief.musical_constraints.get("key", "C minor"))
         tonic, scale = _scale(key)
@@ -118,5 +118,10 @@ class ArrangementPlanner:
             TrackPlan(name="MUSE Atmosphere", role="harmony", instrument="Wavetable", notes=_repeat(harmony_seed, bars)),
             TrackPlan(name="MUSE Motif", role="melody", instrument="Operator", notes=melody_notes),
         ]
+        if previous is not None:
+            prior = {track.role: track for track in previous.tracks}
+            for track in tracks:
+                if track.role in frozen and track.role in prior:
+                    track.notes = [note.model_copy(deep=True) for note in prior[track.role].notes]
         return ArrangementPlan(title="MUSE eight-bar sketch" if bars == 8 else f"MUSE {bars}-bar sketch", tempo=tempo, bars=bars, key=key, tracks=tracks,
                                rationale=["Low register anchors the pulse.", "Sustained harmony leaves room for the motif.", "Final-bar variation can be added during refinement."])

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json, re, time
+import hashlib, json, re, time
 from pathlib import Path
 
 from .arrangement import ArrangementPlanner
@@ -8,7 +8,8 @@ from .daw import AbletonBridgeAdapter, MockDAW
 from .llm import ModelResult, OpenCodeProvider
 from .intent import IntentInterpreter
 from .memory import SoundMemory
-from .models import ArrangementPlan, MemoryItem
+from .models import ArrangementPlan, CreativeBrief, MemoryItem
+from .midi import write_midi
 from .telemetry import LocalTelemetry
 
 
@@ -27,6 +28,69 @@ class CreativeSession:
         self.branches: list[dict] = []
         self.selected_branch: dict | None = None
         self.started = False
+        self.brief: CreativeBrief | None = None
+        self.feedback: list[str] = []
+        self._restore()
+
+    def _restore(self) -> None:
+        state = self.root / "session_state.json"
+        if state.exists():
+            data = json.loads(state.read_text())
+            self.brief = CreativeBrief.model_validate(data["brief"])
+            self.feedback = data["feedback"]
+            self.plan = ArrangementPlan.model_validate(data["plan"])
+            self.started = True
+            self.track_indices = {track.role: i for i, track in enumerate(self.plan.tracks)}
+
+    def _record_round(self, kind: str, text: str, frozen: set[str]) -> dict:
+        ledger = self.root / "rounds.jsonl"
+        n = len(ledger.read_text().splitlines()) if ledger.exists() else 0
+        rounds = self.root / "rounds"
+        rounds.mkdir(parents=True, exist_ok=True)
+        stem = rounds / f"round-{n:03d}"
+        midi = write_midi(self.plan, stem.with_suffix(".mid"))
+        stem.with_suffix(".json").write_text(json.dumps(self.plan.model_dump(), indent=2) + "\n")
+        entry = {"n": n, "kind": kind, "text": text,
+                 "accumulated_feedback": " ".join(self.feedback),
+                 "frozen_parts": sorted(frozen),
+                 "md5": hashlib.md5(midi.read_bytes()).hexdigest()}
+        with ledger.open("a") as stream:
+            stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        (self.root / "session_state.json").write_text(json.dumps({"brief": self.brief.model_dump(), "feedback": self.feedback, "plan": self.plan.model_dump()}, indent=2) + "\n")
+        return entry
+
+    @staticmethod
+    def _frozen_parts(text: str) -> set[str]:
+        roles = {"bass": r"bass", "drums": r"drums?", "melody": r"melody|motif", "harmony": r"harmony|pads?"}
+        lower = text.lower()
+        frozen = set()
+        for clause in re.finditer(r"\bkeep\s+(?:the\s+)?([^.;]+)", lower):
+            phrase = re.split(r"\b(?:but|while|and (?:make|change|revise|make the))\b", clause.group(1))[0]
+            if re.search(r"\beverything else\b", phrase):
+                remainder = lower[:clause.start()] + lower[clause.end():]
+                # A change request following 'but' remains part of this clause.
+                remainder += clause.group(1)[len(phrase):]
+                mentioned = {role for role, pattern in roles.items() if re.search(r"\b(?:" + pattern + r")\b", remainder)}
+                frozen.update(set(roles) - mentioned)
+            else:
+                frozen.update(role for role, pattern in roles.items() if re.search(r"\b(?:" + pattern + r")\b", phrase))
+        return frozen
+
+    def _revise(self, text: str) -> dict:
+        frozen = self._frozen_parts(text)
+        self.feedback.append(text)
+        brief = self.brief.model_copy(deep=True)
+        brief.intent += " [feedback: " + " ".join(self.feedback) + "]"
+        previous = self.plan
+        self.plan = ArrangementPlanner().plan(brief, previous=previous, frozen=frozenset(frozen))
+        if not self.live:
+            execution = self.adapter.create_arrangement(self.plan)
+        else:
+            execution = self.adapter.create_arrangement(self.plan)
+            self.track_indices = {x["role"]: x["index"] for x in execution.get("created_tracks", [])}
+        entry = self._record_round("revise", text, frozen)
+        return {"status": "revised", "brief": brief.model_dump(), "execution": execution, **entry}
+
 
     def _live_tracks(self) -> dict[str, int]:
         snapshot = self.adapter.inspect()
@@ -39,7 +103,7 @@ class CreativeSession:
             if not self.started:
                 result = self._create_from_prompt(text) if self._looks_like_create(low) else {"status": "unsupported", "message": "Start with a musical creation request, such as 'Make a dark electronic groove with an atmospheric pad.'"}
             elif any(x in low for x in ("syncop", "more rhythmic", "change the bass")) and "bass" in low:
-                result = self._revise_bass()
+                result = self._revise(text)
             elif ("three" in low or "3" in low) and ("variation" in low or "version" in low) and ("dark" in low or "groove" in low):
                 result = self._create_variations()
             elif re.search(r"(?:select|choose|pick)\s+(?:variation|version)\s*[1-3]", low):
@@ -52,8 +116,8 @@ class CreativeSession:
                 result = self._arrangement_mode()
             elif "session view" in low or "session mode" in low or "launch the loops" in low:
                 result = self._session_mode()
-            elif "keep" in low and "drum" in low and ("exact" in low or "unchanged" in low):
-                result = {"status": "acknowledged", "preservation": "drums locked for subsequent revisions"}
+            elif "keep" in low:
+                result = self._revise(text)
             elif "mechanical" in low and ("synth" in low or "synthesizer" in low or "bass" in low):
                 result = self._mechanical_sound()
             elif low.startswith("save ") and ("bass" in low or "sound" in low or "preset" in low):
@@ -65,7 +129,7 @@ class CreativeSession:
             elif low in {"quit", "exit"}:
                 result = {"status": "session_complete"}
             else:
-                result = {"status": "unsupported", "message": "I can create an arrangement, revise bass rhythm, preserve drums, make an Operator sound more mechanical, or save/recall an exact preset."}
+                result = self._revise(text)
             result["context_turn"] = len(self.context)
             self.context.append(json.dumps(result, default=str))
             self.telemetry.record("creative_session_turn", started, result.get("status") not in {"unsupported", "error"}, tool_calls=int(self.live), manual_corrections=0)
@@ -88,6 +152,8 @@ class CreativeSession:
         else:
             fallback = IntentInterpreter().interpret(text)
             model = ModelResult(fallback, "deterministic-test", None, 0.0, 0)
+        self.brief = model.brief
+        self.feedback = []
         self.plan = ArrangementPlanner().plan(model.brief)
         self.started = True
         if self.live:
@@ -102,7 +168,8 @@ class CreativeSession:
             reminder = None if save.get("saved") else "Ableton bridge cannot save this Live version; press Cmd+S manually."
         else:
             execution = self.adapter.create_arrangement(self.plan); self.track_indices = {t.role: i for i,t in enumerate(self.plan.tracks)}; reminder = None
-        return {"status": "created", "provider": model.provider, "model": model.model, "model_error": model.error, "latency_ms": round(model.latency_ms, 1), "brief": model.brief.model_dump(), "execution": execution, "question": model.brief.proposed_questions[0] if model.brief.proposed_questions else None, "manual_save_reminder": reminder}
+        entry = self._record_round("create", text, set())
+        return {**entry, "status": "created", "provider": model.provider, "model": model.model, "model_error": model.error, "latency_ms": round(model.latency_ms, 1), "brief": model.brief.model_dump(), "execution": execution, "question": model.brief.proposed_questions[0] if model.brief.proposed_questions else None, "manual_save_reminder": reminder}
 
     def _source_tracks(self) -> dict[str, int]:
         tracks = self.track_indices or self._live_tracks()

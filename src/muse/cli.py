@@ -103,6 +103,17 @@ def create_session(args) -> int:
     return 0
 
 
+def scripted_session(args) -> int:
+    session = CreativeSession(args.data, live=args.live, use_model=not args.offline)
+    status = 0
+    for text in args.say:
+        result = session.handle(text)
+        print(json.dumps(result, default=str))
+        if result.get("status") in {"error", "unsupported"}:
+            status = 1
+    return status
+
+
 def arrangement_command(args) -> int:
     if not args.live:
         print(json.dumps({"status":"unsupported", "message":"Arrangement placement requires --live; offline mode cannot verify Ableton timeline state."}, indent=2)); return 1
@@ -140,6 +151,12 @@ def main(argv=None):
     c.add_argument("--live", action="store_true", help="use the verified Ableton bridge")
     c.add_argument("--offline", action="store_true", help="use deterministic interpretation instead of OpenCode")
     c.set_defaults(func=create_session)
+    sc=sub.add_parser("session", help="run scripted session turns")
+    sc.add_argument("--data", default="data/session")
+    sc.add_argument("--say", action="append", required=True)
+    sc.add_argument("--offline", action="store_true")
+    sc.add_argument("--live", action="store_true")
+    sc.set_defaults(func=scripted_session)
     a=sub.add_parser("arrange", help="copy current Session loops into Arrangement timeline")
     a.add_argument("--data", default="data/session")
     a.add_argument("--live", action="store_true")
