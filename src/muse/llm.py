@@ -154,6 +154,10 @@ class OpenCodeProvider:
 
     interpret() does not raise when the provider fails. The brief then comes from
     IntentInterpreter, provider is deterministic-fallback, and error carries the cause.
+
+    If MUSE_LLM_FIXTURE points at a JSON CreativeBrief dump, interpret() returns
+    that brief with provider "fixture" and does not call opencode. A fixture that
+    cannot be read or validated falls back the same way, still without opencode.
     """
 
     def __init__(self, cwd: str = ".", model: str | None = None, timeout: int = 90, discover_timeout: int = 15):
@@ -167,6 +171,9 @@ class OpenCodeProvider:
         return self.router.catalog
 
     def interpret(self, text: str, context: list[str] | None = None, complexity: str = "routine") -> ModelResult:
+        fixture = os.environ.get("MUSE_LLM_FIXTURE", "").strip()
+        if fixture:
+            return self._interpret_fixture(fixture, text)
         started = time.perf_counter()
         try:
             selected, reason = self.router.select(complexity, self.requested_model)
@@ -208,6 +215,29 @@ class OpenCodeProvider:
                 exc,
                 {"status": "provider_failure", "selection": reason, "requested_model": selected},
             )
+
+    def _interpret_fixture(self, path: str, text: str) -> ModelResult:
+        started = time.perf_counter()
+        try:
+            with open(path, encoding="utf-8") as handle:
+                payload = json.loads(handle.read())
+            brief = CreativeBrief.model_validate(payload)
+        except Exception as exc:
+            return self._fallback(
+                text,
+                started,
+                None,
+                exc,
+                {"status": "fixture_invalid", "fixture": path},
+            )
+        return ModelResult(
+            brief,
+            "fixture",
+            None,
+            _elapsed_ms(started),
+            os.path.getsize(path),
+            {"status": "fixture", "fixture": path},
+        )
 
     def _run(self, selected: str, prompt: str) -> str:
         try:
