@@ -13,6 +13,7 @@ from .models import MemoryItem
 from .taste import TasteStore
 from .render import RenderError, render_midi
 from .session import CreativeSession
+from .song import plan_song
 
 
 def demo(args) -> int:
@@ -51,7 +52,47 @@ def render_command(args) -> int:
         rendered=render_midi(args.midi, args.out, args.soundfont)
     except RenderError as exc:
         print(exc, file=sys.stderr); return 1
-    print(json.dumps({"wav":str(rendered.wav),"soundfont":str(rendered.soundfont)}, indent=2)); return 0
+    print(json.dumps({"wav":str(rendered.wav),"soundfont":str(rendered.soundfont),"duration_seconds":round(rendered.duration_seconds, 3),"size_bytes":rendered.size_bytes}, indent=2)); return 0
+
+
+def song_command(args) -> int:
+    """Write song.mid and song.json. --render also writes song.wav.
+
+    The WAV is rendered at the plan tempo. A 44-bar song at 92 bpm is about
+    115 seconds. A missing SoundFont or fluidsynth exits nonzero with the
+    same message muse render prints.
+    """
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    brief = IntentInterpreter().interpret(args.prompt)
+    plan = plan_song(brief)
+    midi = write_midi(plan, out / "song.mid")
+    plan_path = out / "song.json"
+    dumped = plan.model_dump()
+    plan_path.write_text(json.dumps(dumped, indent=2) + "\n")
+    payload = {
+        "midi": str(midi),
+        "plan": str(plan_path),
+        "md5": hashlib.md5(midi.read_bytes()).hexdigest(),
+        "bars": plan.bars,
+        "tempo": plan.tempo,
+        "key": plan.key,
+    }
+    form = dumped.get("form") or []
+    if form:
+        payload["sections"] = [section["name"] for section in form]
+    if args.render:
+        try:
+            rendered = render_midi(midi, out / "song.wav", args.soundfont, tempo_bpm=plan.tempo)
+        except RenderError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        payload["wav"] = str(rendered.wav)
+        payload["soundfont"] = str(rendered.soundfont)
+        payload["duration_seconds"] = round(rendered.duration_seconds, 3)
+        payload["size_bytes"] = rendered.size_bytes
+    print(json.dumps(payload, indent=2))
+    return 0
 
 
 def hum(args) -> int:
@@ -145,6 +186,12 @@ def main(argv=None):
     song.add_argument("--prompt", required=True); song.add_argument("--out", default="data/song"); song.set_defaults(func=song_command)
     r=sub.add_parser("render", help="render a MIDI file to WAV with fluidsynth")
     r.add_argument("midi"); r.add_argument("--out", help="WAV path (default: sibling .wav)"); r.add_argument("--soundfont", help="SoundFont .sf2 (else $MUSE_SOUNDFONT, ~/.local/share/muse/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)"); r.set_defaults(func=render_command)
+    s=sub.add_parser("song", help="write a full song (edm 44 bars, pop 56) and optionally render it")
+    s.add_argument("--prompt", required=True)
+    s.add_argument("--out", default="data/song", help="directory for song.mid, song.json, and song.wav")
+    s.add_argument("--render", action="store_true", help="render song.wav with fluidsynth at the plan tempo")
+    s.add_argument("--soundfont", help="SoundFont .sf2 (else $MUSE_SOUNDFONT, ~/.local/share/muse/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)")
+    s.set_defaults(func=song_command)
     h=sub.add_parser("transcribe-hum"); h.add_argument("wav"); h.add_argument("--output",default="data/hums/melody.mid"); h.set_defaults(func=hum)
     m=sub.add_parser("memory-search"); m.add_argument("query"); m.add_argument("--data",default="data"); m.set_defaults(func=lambda a: print(json.dumps(SoundMemory(Path(a.data)/"memory").search(a.query),indent=2)) or 0)
     ti=sub.add_parser("taste-import"); ti.add_argument("source"); ti.add_argument("--data",default="data"); ti.add_argument("--exclude-channel",action="append",default=[]); ti.add_argument("--exclude-title",action="append",default=[]); ti.add_argument("--exclude-before"); ti.add_argument("--exclude-after"); ti.set_defaults(func=lambda a: print(json.dumps(TasteStore(Path(a.data)/"taste").import_takeout(a.source,set(a.exclude_channel),set(a.exclude_title),a.exclude_before,a.exclude_after),indent=2)) or 0)
