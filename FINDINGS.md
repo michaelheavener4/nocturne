@@ -115,3 +115,20 @@ Feedback also composes: two revision sentences applied together produce a fourth
 Round 0 and round 1 share every bass note exactly; the drums differ. Round 2 rendered to WAV in the same run (3.3 MB, FluidR3_GM).
 
 **Lesson:** a revision you cannot audit is a promise. State is not bookkeeping; it is what makes "keep that, change this" a fact instead of a vibe.
+
+## Finding 004 — The song planner arrived twice (2026-10-26, Build 4)
+
+**Claim (owner direction, 2026-10-26 21:52):** after hearing the 8-bar loop live in Ableton, the melody was repetitive and the form static. MUSE needed key awareness, song structure, harmony, a developing melody, and transitions: whole songs in the shapes of an EDM track or a Grimes song.
+
+**Result (Build 4, fleet):** `muse song --prompt "TEXT" [--render]` writes a complete song: form templates (edm: intro/verse/build/drop/breakdown/drop/outro, 44 bars; pop: 56 bars with pre-chorus and bridge), a per-song chord progression (minor i–VI–III–VII, major I–V–vi–IV) with harmony on chord tones and bass on roots, a 2-bar motif that returns varied (seeded operators: transpose, octave, rhythm, tail, rest), transition bars and risers into drops, and a breakdown with no drums. Sessions route song-shaped requests to the same planner; plain groove requests still produce the byte-identical 8-bar baseline `aaf9da4b`. The songbook module (progressions, voicings, fills, risers, section energies), written by the Mac's local model, rides along as a content library. Gate v4 adds five song probes: form integrity, key truth, melody variation, transitions, determinism. Gate: 12 of 12 probes; test suite 28 passed, 1 skipped.
+
+**The merge earned its keep this time:** Build 4's streams A (planner) and C (render/session wiring) collided. Each had registered its own `song` subcommand, so the merged CLI refused to start; and C, finding no planner method yet, had shipped a complete fallback planner behind an adapter that looked for a method named `plan_song`. A named its method `song`, the adapter never matched, and the merge briefly carried two planners. Resolution: one planner (A's), one subcommand (C's handler, which renders at the plan tempo). The fallback planner, some 490 lines, is deleted; `song.py` is now only the shared classifier for "is this a song request" plus a delegating entry point. Stream briefs now pin shared method names in the contract, not just shapes.
+
+| Proof on merged main (2026-10-26) | Value |
+|---|---|
+| EDM song, "dark and tense edm track at 92 bpm", MIDI MD5 | `f6b7d767d1ec7326b0edaa35679d4659` |
+| Same song rendered, WAV duration / size | 117.5 s / 20.7 MB (FluidR3_GM) |
+| Session create, same prompt (full song round) | `b5d845f94a314ca98947681e90612b47` |
+| Session create, groove prompt (baseline unchanged) | `aaf9da4b9d5a3332e256d10edbc91b86` |
+
+**Lesson:** parallel builders need name-level contracts. A shape-compatible interface with a different method name is a second implementation waiting to happen.

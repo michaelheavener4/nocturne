@@ -47,6 +47,14 @@ muse render ~/my-session/rounds/round-002.mid   # hear any round
 
 Each round writes `rounds/round-NNN.mid` and its plan JSON, plus a line in `rounds.jsonl`: the text, the accumulated feedback, the frozen parts, and the MD5. Feedback accumulates across rounds, and "keep the bass" (or drums, melody, harmony) freezes that part note for note while the rest is replanned. With a live provider configured the interpreter is an LLM; any provider failure falls back to the deterministic interpreter and records why, so a session never dies because a model did. See Finding 003.
 
+## Songs
+
+```bash
+muse song --prompt "Make a dark and tense edm track at 92 bpm" --out DIR [--render]
+```
+
+A full song, not a loop: form (edm 44 bars, pop 56), a progression the harmony and bass actually follow, a motif that returns varied instead of repeated, transitions and risers between sections, and a breakdown that drops the drums. `--render` writes song.wav at the song's tempo. Sessions plan songs too when the request asks for one; groove requests keep the 8-bar sketch. See Finding 004.
+
 ## Run it
 
 Requires Python 3.12 and pydantic.
@@ -65,8 +73,9 @@ The demo runs the full pipeline against the mock DAW and writes a MIDI sketch pl
 
 - ✅ End-to-end pipeline: brief → plan → MIDI → analysis, with session memory and taste capture.
 - ✅ Track 001 produced three real, human-directed revisions (see FINDINGS for why "human-directed" is the operative phrase).
-- 🔨 **Current build: the planner upgrade.** v1's planner builds every arrangement from hardcoded seed patterns; FINDINGS.md proves user feedback changes nothing at note level. The upgrade makes the brief: key, emotion, density, feedback: actually drive note generation, with before/after MIDI hash evidence for every claimed change.
-- ⬜ Packaging (pyproject, tests) as the repo matures.
+- ✅ Planner upgrade (Builds 1–3): feedback, the prompt, and the key verifiably drive the notes; sessions keep state and freeze parts on request.
+- ✅ Songs (Build 4): full form, progression harmony, a developing melody, transitions. Finding 004.
+- 🔨 Next: a refinement round fed by the research loop (arrangement anatomy, hook variation rates), and the rename to NOCTURNE.
 
 ## Findings
 
