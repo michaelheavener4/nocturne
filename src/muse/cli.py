@@ -36,17 +36,6 @@ def demo(args) -> int:
     print(json.dumps(payload, indent=2)); return 0
 
 
-def song_command(args) -> int:
-    brief = IntentInterpreter().interpret(args.prompt)
-    plan = ArrangementPlanner().song(brief)
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    midi = write_midi(plan, out / "song.mid")
-    (out / "song.json").write_text(json.dumps(plan.model_dump(), indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"midi": str(midi), "plan": str(out / "song.json"), "md5": hashlib.md5(midi.read_bytes()).hexdigest()}, indent=2))
-    return 0
-
-
 def render_command(args) -> int:
     try:
         rendered=render_midi(args.midi, args.out, args.soundfont)
@@ -182,8 +171,6 @@ def arrangement_command(args) -> int:
 def main(argv=None):
     p=argparse.ArgumentParser(prog="muse"); sub=p.add_subparsers(dest="command",required=True)
     d=sub.add_parser("demo"); d.add_argument("--prompt",required=True); d.add_argument("--feedback"); d.add_argument("--live",action="store_true"); d.add_argument("--render",action="store_true",help="after writing MIDI, render a sibling WAV with fluidsynth"); d.add_argument("--data",default="data"); d.set_defaults(func=demo)
-    song=sub.add_parser("song", help="generate a complete song")
-    song.add_argument("--prompt", required=True); song.add_argument("--out", default="data/song"); song.set_defaults(func=song_command)
     r=sub.add_parser("render", help="render a MIDI file to WAV with fluidsynth")
     r.add_argument("midi"); r.add_argument("--out", help="WAV path (default: sibling .wav)"); r.add_argument("--soundfont", help="SoundFont .sf2 (else $MUSE_SOUNDFONT, ~/.local/share/muse/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)"); r.set_defaults(func=render_command)
     s=sub.add_parser("song", help="write a full song (edm 44 bars, pop 56) and optionally render it")
