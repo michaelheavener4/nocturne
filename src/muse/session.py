@@ -73,7 +73,22 @@ class CreativeSession:
                 mentioned = {role for role, pattern in roles.items() if re.search(r"\b(?:" + pattern + r")\b", remainder)}
                 frozen.update(set(roles) - mentioned)
             else:
-                frozen.update(role for role, pattern in roles.items() if re.search(r"\b(?:" + pattern + r")\b", phrase))
+                # The keep-list is the run of role mentions at the start of
+                # the phrase, joined by commas / "and" / "the". A new
+                # instruction ("thinner drums", "add space") ends the list,
+                # so "keep the bass, thinner drums" freezes only the bass.
+                tokens = re.findall(r"[a-z]+", phrase)
+                i = 0
+                while i < len(tokens):
+                    matched = next((role for role, pattern in roles.items()
+                                    if re.fullmatch(pattern, tokens[i])), None)
+                    if matched:
+                        frozen.add(matched)
+                        i += 1
+                    elif tokens[i] in {"and", "the"}:
+                        i += 1
+                    else:
+                        break
         return frozen
 
     def _revise(self, text: str) -> dict:
