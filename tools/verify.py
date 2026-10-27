@@ -8,7 +8,10 @@ Exits 0 only when the whole suite passes, feedback changes the output, the
 prompt composes a distinct and key-correct sketch, repeated prompts are
 deterministic, scripted sessions persist an honest rounds ledger, and full
 songs have real form, key-true harmony, a developing melody, and transitions.
-Prints every probe hash.
+Gate v5 adds the Build 5 research contract: mood progressions the bass
+actually plays, hook statements that repeat rhythm and vary pitch, the
+96-bar club form with ramping builds, and a repetition report that flags
+flat plans. Prints every probe hash.
 """
 from __future__ import annotations
 
@@ -25,6 +28,7 @@ SRC = REPO_ROOT / "src"
 TESTS = REPO_ROOT / "tests"
 
 sys.path.insert(0, str(TESTS))
+sys.path.insert(0, str(SRC))
 from midi_assertions import (  # noqa: E402
     assert_valid_midi,
     expected_scale_pitch_classes,
@@ -32,6 +36,7 @@ from midi_assertions import (  # noqa: E402
     pitched_pitch_classes,
 )
 from song_assertions import (  # noqa: E402
+    DEMO_BASELINE_MD5,
     EDM_PROMPT,
     TEMPLATES,
     chord_tone_audit,
@@ -41,6 +46,14 @@ from song_assertions import (  # noqa: E402
     melody_audit,
     run_song,
     transition_audit,
+)
+from research_assertions import (  # noqa: E402
+    MOOD_PROMPTS,
+    build_anatomy_audit,
+    club_form_audit,
+    hook_audit,
+    progression_audit,
+    repetition_audit,
 )
 
 PROMPT = "dark and tense, 92 bpm"
@@ -540,6 +553,101 @@ def run_song_determinism_probe() -> bool:
     return True
 
 
+def run_song_progression_probe() -> bool:
+    print("== song progression probe (Gate v5) ==")
+    try:
+        with tempfile.TemporaryDirectory(prefix="nocturne-song-progression-") as tmp:
+            for mood in ("dark", "euphoric", "brooding", "driving"):
+                render = run_song(Path(tmp), MOOD_PROMPTS[mood], label=mood, form="edm")
+                report = progression_audit(render, mood)
+                print(
+                    f"  {render.md5}  {mood}: progression={report['name']} "
+                    f"{report['cycle']} across {report['bars_checked']} bars"
+                )
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (mood progressions named; bass roots follow them bar by bar)")
+    return True
+
+
+def run_song_hook_probe() -> bool:
+    print("== song hook probe (Gate v5) ==")
+    try:
+        with tempfile.TemporaryDirectory(prefix="nocturne-song-hook-") as tmp:
+            render = run_song(Path(tmp), MOOD_PROMPTS["dark"], label="dark", form="edm")
+            report = hook_audit(render)
+            print(f"  {render.md5}  hook in {report['section']}: {report}")
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (S2/S4 repeat S1 rhythm with new pitches; S1 leaps >= 5 semitones)")
+    return True
+
+
+def run_club_form_probe() -> bool:
+    print("== club form + build anatomy probe (Gate v5) ==")
+    try:
+        with tempfile.TemporaryDirectory(prefix="nocturne-club-form-") as tmp:
+            render = run_song(Path(tmp), MOOD_PROMPTS["club"], label="club", form="club")
+            form = club_form_audit(render)
+            progression = progression_audit(render, "club")
+            print(
+                f"  {render.md5}  club form: {form['sections']} = {form['bars']} bars; "
+                f"progression={progression['name']} {progression['cycle']}"
+            )
+            for build in build_anatomy_audit(render):
+                print(
+                    f"    build at bar {build['start_bar']}: "
+                    f"snare={build['snare_counts']} kick={build['kick_counts']}"
+                )
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (96-bar club form; snare ramps; final build bar has no kick)")
+    return True
+
+
+def run_repetition_report_probe() -> bool:
+    print("== repetition report probe (Gate v5) ==")
+    try:
+        report = repetition_audit()
+        print(f"  flat plan:   {report['flat']}")
+        print(f"  varied plan: {report['varied']}")
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (flat plan flags repetitive; varied plan does not)")
+    return True
+
+
+def run_club_determinism_probe() -> bool:
+    print("== club determinism + groove baseline probe (Gate v5) ==")
+    try:
+        with tempfile.TemporaryDirectory(prefix="nocturne-club-determinism-") as tmp:
+            first = run_song(Path(tmp), MOOD_PROMPTS["club"], label="club-a", form="club")
+            repeat = run_song(Path(tmp), MOOD_PROMPTS["club"], label="club-b", form="club")
+            if first.md5 != repeat.md5:
+                raise AssertionError(
+                    f"club song is not deterministic: {first.md5} vs {repeat.md5}"
+                )
+            if first.md5 == DEMO_BASELINE_MD5:
+                raise AssertionError("club song collapsed onto the eight-bar baseline")
+            print(f"  {first.md5}  club")
+            print(f"  {repeat.md5}  club (repeat)")
+            _, groove_md5, _ = _run_demo(Path(tmp) / "groove")
+            print(f"  eight-bar demo baseline: {groove_md5}")
+            if groove_md5 != DEMO_BASELINE_MD5:
+                raise AssertionError(
+                    f"groove baseline moved: {groove_md5} != {DEMO_BASELINE_MD5}"
+                )
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (club renders are deterministic; groove baseline untouched)")
+    return True
+
+
 def main() -> int:
     pytest_cmd = [sys.executable, "-m", "pytest", "-q", "tests"]
     print("== pytest ==")
@@ -560,6 +668,11 @@ def main() -> int:
         "song melody variation": run_song_melody_probe(),
         "song transitions": run_song_transition_probe(),
         "song determinism": run_song_determinism_probe(),
+        "song progressions": run_song_progression_probe(),
+        "song hook": run_song_hook_probe(),
+        "club form + builds": run_club_form_probe(),
+        "repetition report": run_repetition_report_probe(),
+        "club determinism": run_club_determinism_probe(),
     }
 
     print("\n== probe summary ==")
