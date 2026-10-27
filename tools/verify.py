@@ -6,8 +6,9 @@ Usage:
 
 Exits 0 only when the whole suite passes, feedback changes the output, the
 prompt composes a distinct and key-correct sketch, repeated prompts are
-deterministic, and scripted sessions persist an honest rounds ledger. Prints
-every probe hash.
+deterministic, scripted sessions persist an honest rounds ledger, and full
+songs have real form, key-true harmony, a developing melody, and transitions.
+Prints every probe hash.
 """
 from __future__ import annotations
 
@@ -29,6 +30,17 @@ from midi_assertions import (  # noqa: E402
     expected_scale_pitch_classes,
     parse_prompt_key,
     pitched_pitch_classes,
+)
+from song_assertions import (  # noqa: E402
+    EDM_PROMPT,
+    TEMPLATES,
+    chord_tone_audit,
+    determinism_audit,
+    form_audit,
+    key_audit,
+    melody_audit,
+    run_song,
+    transition_audit,
 )
 
 PROMPT = "dark and tense, 92 bpm"
@@ -401,6 +413,133 @@ def run_determinism_probe() -> bool:
     return deterministic
 
 
+def run_song_form_probe() -> bool:
+    print("== song form probe ==")
+    try:
+        with tempfile.TemporaryDirectory(prefix="muse-song-form-") as tmp:
+            for label, template in TEMPLATES.items():
+                render = run_song(Path(tmp), template["prompt"], label=label)
+                report = form_audit(
+                    render,
+                    expected_bars=template["bars"],
+                    expected_roles=template["roles"],
+                )
+                print(
+                    f"  {render.md5}  {report['bars']} bars  {template['prompt']}"
+                )
+                for section in report["sections"]:
+                    print(
+                        f"    bar {section['start_bar']:>2} +{section['bars']:<2}  "
+                        f"{section['name']} ({section['role']}) "
+                        f"energy={section['energy']}"
+                    )
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (contiguous form, bar totals, valid MIDI)")
+    return True
+
+
+def run_song_key_probe() -> bool:
+    print("== song key truth probe ==")
+    try:
+        with tempfile.TemporaryDirectory(prefix="muse-song-key-") as tmp:
+            for label, template in TEMPLATES.items():
+                render = run_song(Path(tmp), template["prompt"], label=label)
+                report = key_audit(render)
+                print(
+                    f"  {render.md5}  key={report['key']}  "
+                    f"scale={report['scale']}  pitched_notes={report['total']}  "
+                    f"outside={report['outside']}"
+                )
+                for section in chord_tone_audit(render):
+                    share = (
+                        "n/a"
+                        if section["share"] is None
+                        else f"{section['share']:.1%}"
+                    )
+                    print(
+                        f"    {section['role']:<11} {section['name']:<18} "
+                        f"chord tones {section['chord_tones']:>3}/"
+                        f"{section['notes']:<3} = {share}"
+                    )
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (100% scale tones, every section >= 50% chord tones)")
+    return True
+
+
+def run_song_melody_probe() -> bool:
+    print("== song melody variation probe ==")
+    try:
+        with tempfile.TemporaryDirectory(prefix="muse-song-melody-") as tmp:
+            for label, template in TEMPLATES.items():
+                render = run_song(Path(tmp), template["prompt"], label=label)
+                report = melody_audit(render)
+                print(
+                    f"  {render.md5}  verse_notes={report['verse_notes']}  "
+                    f"hook_notes={report['hook_notes']}  "
+                    f"verse_differs={report['verse_differs_from_hook']}"
+                )
+                for run in report["runs"]:
+                    print(
+                        f"    repeated run: {run['section']} bar {run['bar']} "
+                        f"length {run['run']} allowed={run['allowed']}"
+                    )
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (drops/choruses develop; verse differs from the hook)")
+    return True
+
+
+def run_song_transition_probe() -> bool:
+    print("== song transition probe ==")
+    try:
+        with tempfile.TemporaryDirectory(prefix="muse-song-transition-") as tmp:
+            for label, template in TEMPLATES.items():
+                render = run_song(Path(tmp), template["prompt"], label=label)
+                print(f"  {render.md5}  {template['prompt']}")
+                for report in transition_audit(render):
+                    if report["role"] == "breakdown":
+                        print(
+                            f"    breakdown {report['name']}: "
+                            f"{report['drum_notes']} drum notes"
+                        )
+                        continue
+                    print(
+                        f"    before {report['role']} {report['name']} at bar "
+                        f"{report['start_bar']}: pre bar {report['pre_bar']} "
+                        f"drums={report['pre_drums']} vs median "
+                        f"{report['median_drums']}; mean pitch="
+                        f"{report['pre_mean_pitch']} vs "
+                        f"{report['median_mean_pitch']}"
+                    )
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (pre-drop bars differ; breakdowns have no drums)")
+    return True
+
+
+def run_song_determinism_probe() -> bool:
+    print("== song determinism probe ==")
+    try:
+        with tempfile.TemporaryDirectory(prefix="muse-song-determinism-") as tmp:
+            first = run_song(Path(tmp), EDM_PROMPT, label="first")
+            repeat = run_song(Path(tmp), EDM_PROMPT, label="repeat")
+            report = determinism_audit(first, repeat)
+            print(f"  {report['md5']}  {report['prompt']}")
+            print(f"  {report['repeat_md5']}  {report['prompt']} (repeat)")
+            print(f"  eight-bar demo baseline: {report['demo_baseline']}")
+    except Exception as exc:  # noqa: BLE001 - report, then fail the gate
+        print(f"PROBE ERROR: {exc}")
+        return False
+    print("probe: PASS (same prompt, same song bytes; not the eight-bar demo)")
+    return True
+
+
 def main() -> int:
     pytest_cmd = [sys.executable, "-m", "pytest", "-q", "tests"]
     print("== pytest ==")
@@ -416,6 +555,11 @@ def main() -> int:
         "session ledger": run_session_ledger_probe(),
         "session preservation": run_session_preservation_probe(),
         "session accumulation": run_session_accumulation_probe(),
+        "song form": run_song_form_probe(),
+        "song key truth": run_song_key_probe(),
+        "song melody variation": run_song_melody_probe(),
+        "song transitions": run_song_transition_probe(),
+        "song determinism": run_song_determinism_probe(),
     }
 
     print("\n== probe summary ==")
