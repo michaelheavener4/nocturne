@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .arrangement import ArrangementPlanner
 from .daw import AbletonBridgeAdapter, MockDAW
+from .song import plan_song, wants_full_song
 from .llm import ModelResult, OpenCodeProvider
 from .intent import IntentInterpreter
 from .memory import SoundMemory
@@ -116,7 +117,7 @@ class CreativeSession:
         low = text.lower().strip()
         try:
             if not self.started:
-                result = self._create_from_prompt(text) if self._looks_like_create(low) else {"status": "unsupported", "message": "Start with a musical creation request, such as 'Make a dark electronic groove with an atmospheric pad.'"}
+                result = self._create_from_prompt(text) if self._looks_like_create(low) or wants_full_song(text) else {"status": "unsupported", "message": "Start with a musical creation request, such as 'Make a dark electronic groove with an atmospheric pad.'"}
             elif any(x in low for x in ("syncop", "more rhythmic", "change the bass")) and "bass" in low:
                 result = self._revise(text)
             elif ("three" in low or "3" in low) and ("variation" in low or "version" in low) and ("dark" in low or "groove" in low):
@@ -169,7 +170,14 @@ class CreativeSession:
             model = ModelResult(fallback, "deterministic-test", None, 0.0, 0)
         self.brief = model.brief
         self.feedback = []
-        self.plan = ArrangementPlanner().plan(model.brief)
+        # Song / track / edm / section language plans a full song. Anything
+        # else, including a plain groove, stays on the 8-bar planner so the
+        # baseline hash does not move. Routing follows the artist's words,
+        # not a rewritten brief, and the provider fallback above is untouched.
+        if wants_full_song(text):
+            self.plan = plan_song(model.brief)
+        else:
+            self.plan = ArrangementPlanner().plan(model.brief)
         self.started = True
         if self.live:
             existing = self._live_tracks()
