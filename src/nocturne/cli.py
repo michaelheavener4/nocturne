@@ -13,7 +13,87 @@ from .models import MemoryItem
 from .taste import TasteStore
 from .render import RenderError, render_midi
 from .session import CreativeSession
-from .song import plan_song
+from .song import form_used, plan_song
+
+
+def _repetition_report(plan) -> dict:
+    """Contract report from analysis.repetition_report, with a local fallback.
+
+    Stream A5 owns the canonical function. If this tree is tested before
+    that merge, or A5 exports it under a different name, keep the JSON
+    field present and note the import that won.
+    """
+    fn = None
+    source = "nocturne.cli._fallback_repetition_report"
+    try:
+        from .analysis import repetition_report as fn
+        source = "nocturne.analysis.repetition_report"
+    except ImportError:
+        try:
+            from . import analysis as analysis_mod
+        except ImportError:
+            analysis_mod = None
+        if analysis_mod is not None:
+            fn = getattr(analysis_mod, "repetition_report", None)
+            if callable(fn):
+                source = "nocturne.analysis.repetition_report"
+    if callable(fn):
+        result = fn(plan)
+        if hasattr(result, "model_dump"):
+            result = result.model_dump()
+        if isinstance(result, dict):
+            return result
+        return {
+            "identical_cell_share": None,
+            "range_semitones": None,
+            "stepwise_only": None,
+            "repetitive_flag": None,
+            "value": result,
+            "source": source,
+        }
+    return _fallback_repetition_report(plan)
+
+
+def _fallback_repetition_report(plan) -> dict:
+    """2-bar melody-cell report matching the Build 5 contract."""
+    from collections import Counter
+
+    melody = next((track for track in plan.tracks if track.role == "melody"), None)
+    notes = sorted(melody.notes, key=lambda note: (note.start, note.pitch)) if melody else []
+    pitches = [note.pitch for note in notes]
+    range_semitones = (max(pitches) - min(pitches)) if pitches else 0
+    stepwise_only = (
+        True
+        if len(pitches) < 2
+        else all(abs(pitches[i] - pitches[i - 1]) <= 2 for i in range(1, len(pitches)))
+    )
+    bars = max(1, int(getattr(plan, "bars", 1) or 1))
+    n_cells = (bars + 1) // 2
+    signatures = []
+    for index in range(n_cells):
+        start = index * 8.0
+        end = start + 8.0
+        cell = tuple(
+            (round(note.start - start, 6), int(note.pitch), round(note.duration, 6))
+            for note in notes
+            if start <= note.start < end
+        )
+        signatures.append(cell)
+    if signatures:
+        identical_cell_share = max(Counter(signatures).values()) / len(signatures)
+        cadential_same = signatures[-1] == signatures[0]
+    else:
+        identical_cell_share = 0.0
+        cadential_same = True
+    repetitive_flag = (identical_cell_share > 0.75 and cadential_same) or (
+        range_semitones < 5 and stepwise_only
+    )
+    return {
+        "identical_cell_share": round(identical_cell_share, 4),
+        "range_semitones": int(range_semitones),
+        "stepwise_only": bool(stepwise_only),
+        "repetitive_flag": bool(repetitive_flag),
+    }
 
 
 def demo(args) -> int:
@@ -24,9 +104,10 @@ def demo(args) -> int:
     plan=ArrangementPlanner().plan(brief); adapter=AbletonBridgeAdapter() if args.live else MockDAW(root/"mock_daw")
     inspection=adapter.inspect(); execution=adapter.create_arrangement(plan)
     midi=write_midi(plan, root/"projects"/"nocturne_sketch.mid"); report=analyze_arrangement(plan)
-    root.mkdir(parents=True, exist_ok=True); (root/"projects"/"nocturne_sketch.json").write_text(json.dumps({"brief":brief.model_dump(),"plan":plan.model_dump(),"inspection":inspection,"execution":execution,"analysis":report.model_dump()}, indent=2))
+    repetition=_repetition_report(plan)
+    root.mkdir(parents=True, exist_ok=True); (root/"projects"/"nocturne_sketch.json").write_text(json.dumps({"brief":brief.model_dump(),"plan":plan.model_dump(),"inspection":inspection,"execution":execution,"analysis":report.model_dump(),"repetition_report":repetition}, indent=2))
     item_id=SoundMemory(root/"memory").store(MemoryItem(kind="arrangement",label="NOCTURNE eight-bar sketch",description=brief.intent, path=str(midi),metadata={"tempo":plan.tempo,"key":plan.key}))
-    payload={"question":brief.proposed_questions[0] if brief.proposed_questions else None,"assumptions":brief.assumptions,"execution":execution,"analysis":report.metrics,"memory_id":item_id,"midi":str(midi)}
+    payload={"question":brief.proposed_questions[0] if brief.proposed_questions else None,"assumptions":brief.assumptions,"execution":execution,"analysis":report.metrics,"repetition_report":repetition,"memory_id":item_id,"midi":str(midi)}
     if args.render:
         try:
             rendered=render_midi(midi)
@@ -54,10 +135,12 @@ def song_command(args) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     brief = IntentInterpreter().interpret(args.prompt)
-    plan = plan_song(brief)
+    requested = getattr(args, "form", None)
+    plan = plan_song(brief, form=requested)
     midi = write_midi(plan, out / "song.mid")
     plan_path = out / "song.json"
     dumped = plan.model_dump()
+    dumped["repetition_report"] = _repetition_report(plan)
     plan_path.write_text(json.dumps(dumped, indent=2) + "\n")
     payload = {
         "midi": str(midi),
@@ -66,10 +149,13 @@ def song_command(args) -> int:
         "bars": plan.bars,
         "tempo": plan.tempo,
         "key": plan.key,
+        "form": form_used(plan, requested),
+        "progression_name": dumped.get("progression_name"),
+        "repetition_report": dumped["repetition_report"],
     }
-    form = dumped.get("form") or []
-    if form:
-        payload["sections"] = [section["name"] for section in form]
+    sections = dumped.get("form") or []
+    if isinstance(sections, list) and sections and isinstance(sections[0], dict):
+        payload["sections"] = [section["name"] for section in sections]
     if args.render:
         try:
             rendered = render_midi(midi, out / "song.wav", args.soundfont, tempo_bpm=plan.tempo)
@@ -173,8 +259,9 @@ def main(argv=None):
     d=sub.add_parser("demo"); d.add_argument("--prompt",required=True); d.add_argument("--feedback"); d.add_argument("--live",action="store_true"); d.add_argument("--render",action="store_true",help="after writing MIDI, render a sibling WAV with fluidsynth"); d.add_argument("--data",default="data"); d.set_defaults(func=demo)
     r=sub.add_parser("render", help="render a MIDI file to WAV with fluidsynth")
     r.add_argument("midi"); r.add_argument("--out", help="WAV path (default: sibling .wav)"); r.add_argument("--soundfont", help="SoundFont .sf2 (else $NOCTURNE_SOUNDFONT, ~/.local/share/nocturne/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)"); r.set_defaults(func=render_command)
-    s=sub.add_parser("song", help="write a full song (edm 44 bars, pop 56) and optionally render it")
+    s=sub.add_parser("song", help="write a full song (edm 44 bars, club 96, pop 56) and optionally render it")
     s.add_argument("--prompt", required=True)
+    s.add_argument("--form", choices=("edm", "club", "pop"), default=None, help="form template; default infers edm vs pop from the prompt")
     s.add_argument("--out", default="data/song", help="directory for song.mid, song.json, and song.wav")
     s.add_argument("--render", action="store_true", help="render song.wav with fluidsynth at the plan tempo")
     s.add_argument("--soundfont", help="SoundFont .sf2 (else $NOCTURNE_SOUNDFONT, ~/.local/share/nocturne/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)")
