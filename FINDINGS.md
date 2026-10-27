@@ -126,7 +126,7 @@ Round 0 and round 1 share every bass note exactly; the drums differ. Round 2 ren
 
 | Proof on merged main (2026-10-26) | Value |
 |---|---|
-| EDM song, "dark and tense edm track at 92 bpm", MIDI MD5 | `f6b7d767d1ec7326b0edaa35679d4659` |
+| EDM song, "dark and tense edm track at 92 bpm", MIDI MD5 (CLI and session agree) | `b5d845f94a314ca98947681e90612b47` |
 | Same song rendered, WAV duration / size | 117.5 s / 20.7 MB (FluidR3_GM) |
 | Session create, same prompt (full song round) | `b5d845f94a314ca98947681e90612b47` |
 | Session create, groove prompt (baseline unchanged) | `aaf9da4b9d5a3332e256d10edbc91b86` |
