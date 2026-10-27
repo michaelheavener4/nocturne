@@ -12,7 +12,15 @@ PROGRESSIONS = {
         [(1, "maj"), (2, "maj"), (4, "maj"), (5, "maj")],
         [(1, "maj"), (3, "maj"), (6, "min"), (7, "maj")],
         [(1, "maj"), (5, "maj"), (3, "maj"), (7, "maj")]
-    ]
+    ],
+    "dark": [(0, 5, 2, 6), ("dark", "tense")],
+    "dance": [(0, 5, 6, 3), ("dance", "tense")],
+    "dance_1": [(3, 0, 5, 6), ("dance", "tense")],
+    "dance_2": [(6, 3, 0, 5), ("dance", "tense")],
+    "dance_3": [(5, 6, 3, 0), ("dance", "tense")],
+    "euphoric": [(0, 2, 6, 5), ("euphoric", "tense")],
+    "driving": [(0, 6, 5, 6), ("driving", "tense")],
+    "brooding": [(0, 4, 3, 6), ("brooding", "tense")]
 }
 
 VOICINGS = {
@@ -77,6 +85,21 @@ SECTION_ENERGY = {
         "bridge": 0.65,
         "outro": 0.45
     }
+}
+
+BUILD_ANATOMY = {
+    "snare_subdivision": ["quarter", "eighth", "sixteenth", "thirty-second"],
+    "kick_cut_final_bar": True,
+    "riser_spans_full_build": True,
+    "impact_on_first_bar_after_build": True
+}
+
+HOOK_PHRASE = {
+    "statement_bars": 2,
+    "phrase_statements": 4,
+    "varied_statements": (2, 4),
+    "rhythm_fixed_on_vary": True,
+    "min_leap_semitones": 5
 }
 
 def progression(mode, index=0):

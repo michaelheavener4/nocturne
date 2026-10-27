@@ -126,7 +126,7 @@ class ArrangementPlanner:
         return ArrangementPlan(title="NOCTURNE eight-bar sketch" if bars == 8 else f"NOCTURNE {bars}-bar sketch", tempo=tempo, bars=bars, key=key, tracks=tracks,
                                rationale=["Low register anchors the pulse.", "Sustained harmony leaves room for the motif.", "Final-bar variation can be added during refinement."])
 
-    def song(self, brief: CreativeBrief) -> ArrangementPlan:
+    def song(self, brief: CreativeBrief, form: str | None = None) -> ArrangementPlan:
         """Compose a deterministic, section-based arrangement in absolute beats."""
         from .models import SongSection
 
@@ -138,17 +138,40 @@ class ArrangementPlanner:
         seed = hashlib.sha256(json.dumps(seed_content, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).digest()
         rng = random.Random(int.from_bytes(seed, "big"))
         text = seed_content["intent"].lower()
+        if form not in (None, "edm", "club", "pop"):
+            raise ValueError("form must be edm, club, pop, or None")
         pop = bool(re.search(r"\b(song|vocal|vocals|singer|singing|pop|chorus)\b", text)) and not bool(re.search(r"\b(edm|dance|beat)\b", text))
         templates = ([("intro", 4, .35), ("verse", 8, .5), ("pre-chorus", 4, .7), ("chorus", 8, 1),
                       ("verse", 8, .5), ("chorus", 8, 1), ("bridge", 4, .4), ("chorus", 8, 1), ("outro", 4, .3)] if pop else
                      [("intro", 4, .35), ("verse", 8, .5), ("build", 8, .75), ("drop", 8, 1),
                       ("breakdown", 4, .25), ("drop", 8, 1), ("outro", 4, .3)])
+        if form == "pop" and not pop:
+            templates = [("intro", 4, .35), ("verse", 8, .5), ("pre-chorus", 4, .7), ("chorus", 8, 1), ("verse", 8, .5), ("chorus", 8, 1), ("bridge", 4, .4), ("chorus", 8, 1), ("outro", 4, .3)]
+        elif form == "edm" and pop:
+            templates = [("intro", 4, .35), ("verse", 8, .5), ("build", 8, .75), ("drop", 8, 1), ("breakdown", 4, .25), ("drop", 8, 1), ("outro", 4, .3)]
+        elif form == "club":
+            templates = [("intro", 16, .35), ("build", 8, .75), ("drop", 16, 1), ("breakdown", 16, .25), ("build", 8, .75), ("drop", 16, 1), ("outro", 16, .3)]
+        requested_form = form
         form = []
         bar = 0
         for name, bars, energy in templates:
             form.append(SongSection(name=name, role=name, start_bar=bar, bars=bars, energy=energy))
             bar += bars
-        progression = (0, 4, 5, 3) if key.lower().strip().endswith("major") else (0, 5, 2, 6)
+        emotions = brief.emotional_dimensions
+        def mood_words(words):
+            return any(re.search(r"\b" + word + r"\b", text) for word in words)
+        if key.lower().strip().endswith("major"):
+            progression_name, progression = "major", (0, 4, 5, 3)
+        elif mood_words(("euphoric", "uplifting", "bright")) or max(emotions.get("brightness", 0), emotions.get("euphoria", 0), emotions.get("uplifting", 0)) >= .5:
+            progression_name, progression = "euphoric", (0, 2, 6, 5)
+        elif mood_words(("brooding", "melancholic", "melancholy", "sad")) or max(emotions.get("sadness", 0), emotions.get("melancholy", 0), emotions.get("brooding", 0)) >= .5:
+            progression_name, progression = "brooding", (0, 4, 3, 6)
+        elif mood_words(("driving", "anthemic", "epic")) or max(emotions.get("driving", 0), emotions.get("anthemic", 0), emotions.get("epic", 0)) >= .5:
+            progression_name, progression = "driving", (0, 6, 5, 6)
+        elif requested_form == "club":
+            progression_name, progression = "dance", (0, 5, 6, 3)
+        else:
+            progression_name, progression = "dark", (0, 5, 2, 6)
         tracks = {role: [] for role in ("drums", "bass", "harmony", "melody")}
         def pitch(degree: int, octave: int) -> int:
             return 12 * octave + tonic + scale[degree % 7] + 12 * (degree // 7)
@@ -157,7 +180,7 @@ class ArrangementPlanner:
         def drum(p: int, start: float, velocity: int):
             tracks["drums"].append(Note(pitch=p, start=start, duration=.15, velocity=velocity))
         # A two-bar motif in chord-relative scale degrees, with stable seeded contour.
-        motif = [(0, 0, 0), (0, 1, 2), (0, 2.5, 4), (0, 3.5, rng.choice((1, 2))),
+        motif = [(0, 0, 0), (0, 1, 4), (0, 2.5, 4), (0, 3.5, rng.choice((1, 2))),
                  (1, .5, 4), (1, 1.5, 2), (1, 2.5, 0), (1, 3.5, rng.choice((2, 4)))]
         return_index = 0
         for si, section in enumerate(form):
@@ -170,12 +193,21 @@ class ArrangementPlanner:
                 energy = section.energy
                 riser = next_role in ("drop", "chorus") and local >= section.bars - 2
                 impact = section.role in ("drop", "chorus") and local == 0
+                build = section.role == "build"
                 if section.role != "breakdown":
-                    drum(36, start, int(85 + 27 * energy))
-                    drum(38, start + 2, int(75 + 25 * energy))
+                    if not (build and local == section.bars - 1):
+                        drum(36, start, int(85 + 27 * energy))
+                    if build:
+                        spacing = 1 if local < section.bars // 3 else .5 if local < 2 * section.bars // 3 else .25
+                        if local == section.bars - 1:
+                            spacing = .125
+                        for i in range(int(4 / spacing)):
+                            drum(38, start + i * spacing, min(120, 75 + local * 3))
+                    else:
+                        drum(38, start + 2, int(75 + 25 * energy))
                     for off in ([.5, 1.5, 2.5, 3.5] if energy >= .7 else [1.5, 3.5]):
                         drum(42, start + off, int(55 + 25 * energy))
-                    if local == section.bars - 1:
+                    if local == section.bars - 1 and not build:
                         for off in (2.25, 2.75, 3, 3.25, 3.5, 3.75):
                             drum(38, start + off, 85 + int(15 * energy))
                     if riser:
@@ -195,12 +227,20 @@ class ArrangementPlanner:
                 if local % 2 == 0:
                     operator = rng.choice(("transpose", "octave", "rhythm", "tail", "rest")) if return_index else "original"
                     return_index += 1
+                hook = section.role in ("drop", "chorus")
+                if hook:
+                    # Reuse a two-bar onset pattern for all statements. Pitch-only
+                    # operators vary the answers and the second drop.
+                    statement = (local % 8) // 2
+                    operator = ("original", "transpose", "tail", "octave")[statement]
+                    if section.role == "drop" and sum(s.role == "drop" for s in form[:si]) > 0:
+                        operator = ("transpose", "tail", "octave", "transpose")[statement]
                 for motif_bar, offset, degree in motif:
                     if motif_bar != local % 2:
                         continue
                     if section.role == "verse" and offset in (1, 1.5, 3.5):
                         continue
-                    if operator == "rest" and offset == 2.5:
+                    if not hook and operator == "rest" and offset == 2.5:
                         continue
                     d = degree + (2 if operator == "transpose" else 0)
                     if operator == "tail" and offset == 3.5:
@@ -211,7 +251,7 @@ class ArrangementPlanner:
                     octave = 5 + int(energy >= .9) - int(section.role == "verse") + int(operator == "octave")
                     add("melody", d, octave, start + offset + shift, .35, int(60 + 30 * energy))
                 if impact:
-                    add("melody", root, 6, start, .5, 105)
+                    drum(49, start, 127)
             # Breakdown is deliberately silent in drums, including its transition.
         # Guard against repeated bars even when seeded operators happen to coincide.
         previous_bars: list[tuple] = []
@@ -231,5 +271,5 @@ class ArrangementPlanner:
         parts = [("drums", "NOCTURNE Drums", "Ableton Core Kit"), ("bass", "NOCTURNE Bass", "Operator"),
                  ("harmony", "NOCTURNE Atmosphere", "Wavetable"), ("melody", "NOCTURNE Motif", "Operator")]
         return ArrangementPlan(title="NOCTURNE song", tempo=float(brief.musical_constraints.get("tempo_bpm", 120)), bars=bar, key=key,
-                               form=form, tracks=[TrackPlan(name=name, role=role, instrument=instrument, notes=tracks[role]) for role, name, instrument in parts],
+                               progression_name=progression_name, progression=list(progression), form=form, tracks=[TrackPlan(name=name, role=role, instrument=instrument, notes=tracks[role]) for role, name, instrument in parts],
                                rationale=["Section energy shapes register, velocity and density.", "Harmony follows a diatonic four-chord progression."])

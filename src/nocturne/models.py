@@ -45,11 +45,13 @@ class SongSection(BaseModel):
 class ArrangementPlan(BaseModel):
     title: str
     tempo: float = Field(ge=20, le=300)
-    bars: int = Field(default=8, ge=1, le=64)
+    bars: int = Field(default=8, ge=1)
     key: str
     tracks: list[TrackPlan]
     rationale: list[str] = Field(default_factory=list)
     form: list[SongSection] = Field(default_factory=list)
+    progression_name: str = ""
+    progression: list[int] = Field(default_factory=list)
 
 
 class EvidenceClaim(BaseModel):

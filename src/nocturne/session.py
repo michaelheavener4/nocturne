@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .arrangement import ArrangementPlanner
 from .daw import AbletonBridgeAdapter, MockDAW
-from .song import plan_song, wants_full_song
+from .song import plan_song, requested_form, wants_full_song
 from .llm import ModelResult, OpenCodeProvider
 from .intent import IntentInterpreter
 from .memory import SoundMemory
@@ -170,12 +170,14 @@ class CreativeSession:
             model = ModelResult(fallback, "deterministic-test", None, 0.0, 0)
         self.brief = model.brief
         self.feedback = []
-        # Song / track / edm / section language plans a full song. Anything
-        # else, including a plain groove, stays on the 8-bar planner so the
+        # Song / track / edm / club / section language plans a full song.
+        # A request containing "club" passes form="club"; other song requests
+        # leave form=None so the planner infers edm vs pop. Anything else,
+        # including a plain groove, stays on the 8-bar planner so the
         # baseline hash does not move. Routing follows the artist's words,
         # not a rewritten brief, and the provider fallback above is untouched.
         if wants_full_song(text):
-            self.plan = plan_song(model.brief)
+            self.plan = plan_song(model.brief, form=requested_form(text))
         else:
             self.plan = ArrangementPlanner().plan(model.brief)
         self.started = True

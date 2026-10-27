@@ -19,3 +19,22 @@ def analyze_arrangement(plan: ArrangementPlan) -> AnalysisReport:
                               {"kind":"MEASURED", "statement":"Pitch range in MIDI semitones", "value":f"{min(pitches)}-{max(pitches)}", "uncertainty":"Does not describe timbre or perceived register."},
                               {"kind":"HYPOTHESIS", "statement":"The sustained harmony may create space for a foreground motif.", "source":"Arrangement heuristic; test by listening."},
                           ])
+
+
+def repetition_report(plan: ArrangementPlan) -> dict[str, float | int | bool]:
+    """Measure identical two-bar melody cells and melodic movement."""
+    notes = sorted((n for track in plan.tracks if track.role == "melody" for n in track.notes),
+                   key=lambda n: (n.start, n.pitch, n.duration))
+    cells = []
+    for start in range(0, plan.bars * 4, 8):
+        cells.append(tuple((n.pitch, n.start - start, n.duration)
+                           for n in notes if start <= n.start < start + 8))
+    counts = Counter(cells)
+    share = max(counts.values(), default=0) / len(cells) if cells else 0.0
+    pitches = [n.pitch for n in notes]
+    pitch_range = max(pitches) - min(pitches) if pitches else 0
+    stepwise = all(abs(b - a) <= 2 for a, b in zip(pitches, pitches[1:]))
+    return {"identical_cell_share": share, "range_semitones": pitch_range,
+            "stepwise_only": stepwise,
+            "repetitive_flag": (share > .75 and bool(cells) and cells[-1] == cells[0])
+                               or (pitch_range < 5 and stepwise)}
