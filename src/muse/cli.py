@@ -11,6 +11,7 @@ from .memory import SoundMemory
 from .midi import write_midi
 from .models import MemoryItem
 from .taste import TasteStore
+from .render import RenderError, render_midi
 from .session import CreativeSession
 
 
@@ -24,7 +25,22 @@ def demo(args) -> int:
     midi=write_midi(plan, root/"projects"/"muse_sketch.mid"); report=analyze_arrangement(plan)
     root.mkdir(parents=True, exist_ok=True); (root/"projects"/"muse_sketch.json").write_text(json.dumps({"brief":brief.model_dump(),"plan":plan.model_dump(),"inspection":inspection,"execution":execution,"analysis":report.model_dump()}, indent=2))
     item_id=SoundMemory(root/"memory").store(MemoryItem(kind="arrangement",label="MUSE eight-bar sketch",description=brief.intent, path=str(midi),metadata={"tempo":plan.tempo,"key":plan.key}))
-    print(json.dumps({"question":brief.proposed_questions[0] if brief.proposed_questions else None,"assumptions":brief.assumptions,"execution":execution,"analysis":report.metrics,"memory_id":item_id,"midi":str(midi)}, indent=2)); return 0
+    payload={"question":brief.proposed_questions[0] if brief.proposed_questions else None,"assumptions":brief.assumptions,"execution":execution,"analysis":report.metrics,"memory_id":item_id,"midi":str(midi)}
+    if args.render:
+        try:
+            rendered=render_midi(midi)
+        except RenderError as exc:
+            print(exc, file=sys.stderr); return 1
+        payload["wav"]=str(rendered.wav)
+    print(json.dumps(payload, indent=2)); return 0
+
+
+def render_command(args) -> int:
+    try:
+        rendered=render_midi(args.midi, args.out, args.soundfont)
+    except RenderError as exc:
+        print(exc, file=sys.stderr); return 1
+    print(json.dumps({"wav":str(rendered.wav),"soundfont":str(rendered.soundfont)}, indent=2)); return 0
 
 
 def hum(args) -> int:
@@ -102,7 +118,9 @@ def arrangement_command(args) -> int:
 
 def main(argv=None):
     p=argparse.ArgumentParser(prog="muse"); sub=p.add_subparsers(dest="command",required=True)
-    d=sub.add_parser("demo"); d.add_argument("--prompt",required=True); d.add_argument("--feedback"); d.add_argument("--live",action="store_true"); d.add_argument("--data",default="data"); d.set_defaults(func=demo)
+    d=sub.add_parser("demo"); d.add_argument("--prompt",required=True); d.add_argument("--feedback"); d.add_argument("--live",action="store_true"); d.add_argument("--render",action="store_true",help="after writing MIDI, render a sibling WAV with fluidsynth"); d.add_argument("--data",default="data"); d.set_defaults(func=demo)
+    r=sub.add_parser("render", help="render a MIDI file to WAV with fluidsynth")
+    r.add_argument("midi"); r.add_argument("--out", help="WAV path (default: sibling .wav)"); r.add_argument("--soundfont", help="SoundFont .sf2 (else $MUSE_SOUNDFONT, ~/.local/share/muse/soundfonts/*.sf2, then /usr/share/soundfonts/FluidR3_GM.sf2)"); r.set_defaults(func=render_command)
     h=sub.add_parser("transcribe-hum"); h.add_argument("wav"); h.add_argument("--output",default="data/hums/melody.mid"); h.set_defaults(func=hum)
     m=sub.add_parser("memory-search"); m.add_argument("query"); m.add_argument("--data",default="data"); m.set_defaults(func=lambda a: print(json.dumps(SoundMemory(Path(a.data)/"memory").search(a.query),indent=2)) or 0)
     ti=sub.add_parser("taste-import"); ti.add_argument("source"); ti.add_argument("--data",default="data"); ti.add_argument("--exclude-channel",action="append",default=[]); ti.add_argument("--exclude-title",action="append",default=[]); ti.add_argument("--exclude-before"); ti.add_argument("--exclude-after"); ti.set_defaults(func=lambda a: print(json.dumps(TasteStore(Path(a.data)/"taste").import_takeout(a.source,set(a.exclude_channel),set(a.exclude_title),a.exclude_before,a.exclude_after),indent=2)) or 0)
