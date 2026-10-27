@@ -76,7 +76,9 @@ class SongRender:
     stdout: str
 
 
-def run_song(workdir: Path, prompt: str, *, label: str = "song") -> SongRender:
+def run_song(
+    workdir: Path, prompt: str, *, label: str = "song", form: str | None = None
+) -> SongRender:
     """Run ``nocturne song`` offline and return the artifact pair plus stdout."""
     out_dir = workdir / label
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -90,6 +92,8 @@ def run_song(workdir: Path, prompt: str, *, label: str = "song") -> SongRender:
         "--out",
         str(out_dir),
     ]
+    if form is not None:
+        command += ["--form", form]
     env = os.environ.copy()
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = str(REPO_ROOT / "src") + (
