@@ -10,8 +10,10 @@ from .models import CreativeBrief
 
 # Mark on ModelResult.provider when the brief came from IntentInterpreter.
 FALLBACK_PROVIDER = "deterministic-fallback"
-# Original discovery order. Model priority still lives in select().
-DISCOVERY_PROVIDERS = ("opencode-go", "opencode")
+# Free default. Used when it appears in the discovered catalog.
+PINNED_FREE_MODEL = "opencode/deepseek-v4.1-flash-free"
+# Scan the free OpenCode catalog first so "first discovered" is stable.
+DISCOVERY_PROVIDERS = ("opencode", "opencode-go")
 
 
 @dataclass
@@ -61,16 +63,32 @@ class OpenCodeModelRouter:
             if error and error not in self.errors:
                 self.errors.append(error)
 
-    def select(self, complexity: str = "routine", requested: str | None = None) -> str | None:
+    def models_in_discovery_order(self) -> list[str]:
+        """Model ids in CLI order. Not sorted: the first entry is the first discovered."""
         self.discover()
-        available = self.catalog.get("opencode-go", [])
+        found: list[str] = []
+        for provider in DISCOVERY_PROVIDERS:
+            for model in self.catalog.get(provider, []):
+                if model not in found:
+                    found.append(model)
+        return found
+
+    def select(self, complexity: str = "routine", requested: str | None = None) -> tuple[str | None, str]:
+        """Choose a model and say why.
+
+        An explicit listed request wins. Otherwise the pinned free model wins when
+        it was discovered, otherwise the first discovered id. complexity is kept
+        for callers and does not change the choice.
+        """
+        del complexity
+        available = self.models_in_discovery_order()
         if requested and requested in available:
-            return requested
-        if complexity in {"complex", "ambiguous"}:
-            priorities = ["opencode-go/deepseek-v4-pro", "opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3"]
-        else:
-            priorities = ["opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3-flash", "opencode-go/deepseek-v4-pro"]
-        return next((model for model in priorities if model in available), None)
+            return requested, "requested"
+        if PINNED_FREE_MODEL in available:
+            return PINNED_FREE_MODEL, "pinned"
+        if available:
+            return available[0], "first-discovered"
+        return None, "none"
 
     def _list(self, provider: str) -> tuple[list[str], str | None]:
         if self._binary_error:
@@ -151,9 +169,9 @@ class OpenCodeProvider:
     def interpret(self, text: str, context: list[str] | None = None, complexity: str = "routine") -> ModelResult:
         started = time.perf_counter()
         try:
-            selected = self.router.select(complexity, self.requested_model)
+            selected, reason = self.router.select(complexity, self.requested_model)
         except Exception as exc:
-            return self._fallback(text, started, None, exc, {"status": "provider_failure"})
+            return self._fallback(text, started, None, exc, {"status": "provider_failure", "selection": "none"})
         if selected is None:
             if self.router.errors:
                 cause = "; ".join(self.router.errors)
@@ -167,18 +185,20 @@ class OpenCodeProvider:
                 started,
                 None,
                 cause,
-                {"status": "unavailable", "available_models": self.availability()},
+                {"status": "unavailable", "selection": reason, "available_models": self.availability()},
             )
         try:
             raw = self._run(selected, _prompt(text, context))
             brief = CreativeBrief.model_validate(_json_object(_answer(raw)))
+            usage = _usage(raw)
+            usage["selection"] = reason
             return ModelResult(
                 brief,
                 _provider_of(selected),
                 selected,
                 _elapsed_ms(started),
                 len(raw),
-                _usage(raw),
+                usage,
             )
         except Exception as exc:
             return self._fallback(
@@ -186,7 +206,7 @@ class OpenCodeProvider:
                 started,
                 selected,
                 exc,
-                {"status": "provider_failure", "requested_model": selected},
+                {"status": "provider_failure", "selection": reason, "requested_model": selected},
             )
 
     def _run(self, selected: str, prompt: str) -> str:
