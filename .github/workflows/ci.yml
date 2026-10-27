@@ -1,8 +1,15 @@
 name: CI
 
 on:
+  # Fleet branches are working surfaces: gate branches are SUPPOSED to
+  # fail until merged (the gate is written first and the coordinator
+  # runs it locally before merging). Running CI on every branch push
+  # turned that pattern into failure-notification spam. CI now guards
+  # main, pull requests, and manual runs.
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
