@@ -47,7 +47,7 @@ def _run_demo(workdir: Path, feedback: str) -> tuple[str, str, bytes]:
             f"demo failed for feedback {feedback!r} (exit {result.returncode})\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
-    midi_path = data_dir / "projects" / "muse_sketch.mid"
+    midi_path = data_dir / "projects" / "nocturne_sketch.mid"
     assert midi_path.is_file(), f"demo did not write {midi_path}\nstdout:\n{result.stdout}"
     midi_bytes = midi_path.read_bytes()
     return feedback, hashlib.md5(midi_bytes).hexdigest(), midi_bytes

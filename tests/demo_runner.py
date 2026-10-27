@@ -50,7 +50,7 @@ def run_demo(
             f"(exit {result.returncode})\nstdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    midi_path = data_dir / "projects" / "muse_sketch.mid"
+    midi_path = data_dir / "projects" / "nocturne_sketch.mid"
     if not midi_path.is_file():
         raise AssertionError(
             f"demo did not write {midi_path}\nstdout:\n{result.stdout}"

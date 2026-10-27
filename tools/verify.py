@@ -100,7 +100,7 @@ def _run_demo(
             f"(exit {result.returncode})\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
-    midi_path = data_dir / "projects" / "muse_sketch.mid"
+    midi_path = data_dir / "projects" / "nocturne_sketch.mid"
     if not midi_path.is_file():
         raise RuntimeError(f"demo did not write {midi_path}\nstdout:\n{result.stdout}")
     midi_bytes = midi_path.read_bytes()

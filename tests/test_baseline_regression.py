@@ -99,7 +99,7 @@ def test_track001_known_hash(revision: str, tmp_path: Path) -> None:
 
 def test_fixture_still_parses_as_the_published_plan_shape() -> None:
     plan = ArrangementPlan(**_base_plan())
-    assert plan.title == "NOCTURNE eight-bar sketch"
+    assert plan.title == "MUSE eight-bar sketch"  # the fixture is the frozen published plan from Finding 001; it keeps its period name on purpose
     assert plan.tempo == 92.0
     assert plan.key == "A minor"
     assert {track.role for track in plan.tracks} == {"drums", "bass", "harmony", "melody"}
