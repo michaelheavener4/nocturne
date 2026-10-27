@@ -34,6 +34,14 @@ class TrackPlan(BaseModel):
     approved: bool = False
 
 
+class SongSection(BaseModel):
+    name: str
+    role: str
+    start_bar: int = Field(ge=0)
+    bars: int = Field(ge=1)
+    energy: float = Field(ge=0, le=1)
+
+
 class ArrangementPlan(BaseModel):
     title: str
     tempo: float = Field(ge=20, le=300)
@@ -41,6 +49,7 @@ class ArrangementPlan(BaseModel):
     key: str
     tracks: list[TrackPlan]
     rationale: list[str] = Field(default_factory=list)
+    form: list[SongSection] = Field(default_factory=list)
 
 
 class EvidenceClaim(BaseModel):

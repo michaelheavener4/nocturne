@@ -125,3 +125,111 @@ class ArrangementPlanner:
                     track.notes = [note.model_copy(deep=True) for note in prior[track.role].notes]
         return ArrangementPlan(title="MUSE eight-bar sketch" if bars == 8 else f"MUSE {bars}-bar sketch", tempo=tempo, bars=bars, key=key, tracks=tracks,
                                rationale=["Low register anchors the pulse.", "Sustained harmony leaves room for the motif.", "Final-bar variation can be added during refinement."])
+
+    def song(self, brief: CreativeBrief) -> ArrangementPlan:
+        """Compose a deterministic, section-based arrangement in absolute beats."""
+        from .models import SongSection
+
+        key = str(brief.musical_constraints.get("key", "C minor"))
+        tonic, scale = _scale(key)
+        seed_content = {"intent": re.sub(r"\s*\[feedback: .*\]$", "", brief.intent, flags=re.I | re.S),
+                        "emotional_dimensions": brief.emotional_dimensions,
+                        "musical_constraints": brief.musical_constraints}
+        seed = hashlib.sha256(json.dumps(seed_content, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).digest()
+        rng = random.Random(int.from_bytes(seed, "big"))
+        text = seed_content["intent"].lower()
+        pop = bool(re.search(r"\b(song|vocal|vocals|singer|singing|pop|chorus)\b", text)) and not bool(re.search(r"\b(edm|dance|beat)\b", text))
+        templates = ([("intro", 4, .35), ("verse", 8, .5), ("pre-chorus", 4, .7), ("chorus", 8, 1),
+                      ("verse", 8, .5), ("chorus", 8, 1), ("bridge", 4, .4), ("chorus", 8, 1), ("outro", 4, .3)] if pop else
+                     [("intro", 4, .35), ("verse", 8, .5), ("build", 8, .75), ("drop", 8, 1),
+                      ("breakdown", 4, .25), ("drop", 8, 1), ("outro", 4, .3)])
+        form = []
+        bar = 0
+        for name, bars, energy in templates:
+            form.append(SongSection(name=name, role=name, start_bar=bar, bars=bars, energy=energy))
+            bar += bars
+        progression = (0, 4, 5, 3) if key.lower().strip().endswith("major") else (0, 5, 2, 6)
+        tracks = {role: [] for role in ("drums", "bass", "harmony", "melody")}
+        def pitch(degree: int, octave: int) -> int:
+            return 12 * octave + tonic + scale[degree % 7] + 12 * (degree // 7)
+        def add(role: str, degree: int, octave: int, start: float, duration: float, velocity: int):
+            tracks[role].append(Note(pitch=pitch(degree, octave), start=start, duration=duration, velocity=max(1, min(127, velocity))))
+        def drum(p: int, start: float, velocity: int):
+            tracks["drums"].append(Note(pitch=p, start=start, duration=.15, velocity=velocity))
+        # A two-bar motif in chord-relative scale degrees, with stable seeded contour.
+        motif = [(0, 0, 0), (0, 1, 2), (0, 2.5, 4), (0, 3.5, rng.choice((1, 2))),
+                 (1, .5, 4), (1, 1.5, 2), (1, 2.5, 0), (1, 3.5, rng.choice((2, 4)))]
+        return_index = 0
+        for si, section in enumerate(form):
+            next_role = form[si + 1].role if si + 1 < len(form) else None
+            for local in range(section.bars):
+                absolute = section.start_bar + local
+                start = absolute * 4
+                root = progression[(local // (2 if section.role == "verse" else 1)) % 4]
+                chord = (root, root + 2, root + 4)
+                energy = section.energy
+                riser = next_role in ("drop", "chorus") and local >= section.bars - 2
+                impact = section.role in ("drop", "chorus") and local == 0
+                if section.role != "breakdown":
+                    drum(36, start, int(85 + 27 * energy))
+                    drum(38, start + 2, int(75 + 25 * energy))
+                    for off in ([.5, 1.5, 2.5, 3.5] if energy >= .7 else [1.5, 3.5]):
+                        drum(42, start + off, int(55 + 25 * energy))
+                    if local == section.bars - 1:
+                        for off in (2.25, 2.75, 3, 3.25, 3.5, 3.75):
+                            drum(38, start + off, 85 + int(15 * energy))
+                    if riser:
+                        for off in ([0, 1, 2, 3] if local == section.bars - 2 else [x / 2 for x in range(8)]):
+                            drum(46, start + off, 65 + int(20 * energy) + (10 if local == section.bars - 1 else 0))
+                add("bass", root, 3, start, .8, int(65 + 35 * energy))
+                if energy >= .5:
+                    add("bass", root + 7, 3, start + 2, .65, int(60 + 30 * energy))
+                # Broken voicing, with root/fifth only in the breakdown.
+                tones = (root, root + 4) if section.role == "breakdown" else chord
+                for i, degree in enumerate(tones):
+                    add("harmony", degree, 4 + int(energy >= .9), start + i * .75, 2.2 if i == 0 else 1.3, int(42 + 30 * energy))
+                if riser:
+                    for i in range(2 if local == section.bars - 2 else 4):
+                        add("harmony", chord[i % 3], 5 + int(local == section.bars - 1), start + i * (2 if local == section.bars - 2 else 1), .3, 65 + i * 3)
+                # One operator per two-bar return, seeded independently of section shape.
+                if local % 2 == 0:
+                    operator = rng.choice(("transpose", "octave", "rhythm", "tail", "rest")) if return_index else "original"
+                    return_index += 1
+                for motif_bar, offset, degree in motif:
+                    if motif_bar != local % 2:
+                        continue
+                    if section.role == "verse" and offset in (1, 1.5, 3.5):
+                        continue
+                    if operator == "rest" and offset == 2.5:
+                        continue
+                    d = degree + (2 if operator == "transpose" else 0)
+                    if operator == "tail" and offset == 3.5:
+                        d = 4 if degree != 4 else 2
+                    # Map motif degrees to the current chord; occasional passing tones retain contour.
+                    d = root + d
+                    shift = .25 if operator == "rhythm" and offset < 3.5 else 0
+                    octave = 5 + int(energy >= .9) - int(section.role == "verse") + int(operator == "octave")
+                    add("melody", d, octave, start + offset + shift, .35, int(60 + 30 * energy))
+                if impact:
+                    add("melody", root, 6, start, .5, 105)
+            # Breakdown is deliberately silent in drums, including its transition.
+        # Guard against repeated bars even when seeded operators happen to coincide.
+        previous_bars: list[tuple] = []
+        for absolute in range(bar):
+            notes = [n for n in tracks["melody"] if absolute * 4 <= n.start < (absolute + 1) * 4]
+            signature = tuple((n.pitch, n.start - absolute * 4, n.duration) for n in notes)
+            if len(previous_bars) >= 2 and signature == previous_bars[-1] == previous_bars[-2]:
+                if notes:
+                    notes[-1].pitch += 12 if notes[-1].pitch <= 115 else -12
+                else:
+                    section = next(s for s in form if s.start_bar <= absolute < s.start_bar + s.bars)
+                    root = progression[((absolute - section.start_bar) // (2 if section.role == "verse" else 1)) % 4]
+                    add("melody", root, 5, absolute * 4 + 3, .35, 70)
+                    notes = [tracks["melody"][-1]]
+                signature = tuple((n.pitch, n.start - absolute * 4, n.duration) for n in notes)
+            previous_bars.append(signature)
+        parts = [("drums", "MUSE Drums", "Ableton Core Kit"), ("bass", "MUSE Bass", "Operator"),
+                 ("harmony", "MUSE Atmosphere", "Wavetable"), ("melody", "MUSE Motif", "Operator")]
+        return ArrangementPlan(title="MUSE song", tempo=float(brief.musical_constraints.get("tempo_bpm", 120)), bars=bar, key=key,
+                               form=form, tracks=[TrackPlan(name=name, role=role, instrument=instrument, notes=tracks[role]) for role, name, instrument in parts],
+                               rationale=["Section energy shapes register, velocity and density.", "Harmony follows a diatonic four-chord progression."])
