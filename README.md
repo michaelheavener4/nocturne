@@ -33,6 +33,20 @@ python tools/verify.py   # pytest suite + multi-feedback hash probe
 
 Before the fix, every feedback string produced the same MD5. See `FINDINGS.md`, Finding 001, for the autopsy and the resolution hashes.
 
+## Sessions
+
+One prompt is a sketch; a session is the conversation. `muse session` keeps every round on disk so a revision can be audited, not just believed:
+
+```bash
+muse session --data ~/my-session --offline \
+  --say "Make a dark and tense electronic groove at 92 bpm" \
+  --say "keep the bass, thinner drums" \
+  --say "take it darker"
+muse render ~/my-session/rounds/round-002.mid   # hear any round
+```
+
+Each round writes `rounds/round-NNN.mid` and its plan JSON, plus a line in `rounds.jsonl`: the text, the accumulated feedback, the frozen parts, and the MD5. Feedback accumulates across rounds, and "keep the bass" (or drums, melody, harmony) freezes that part note for note while the rest is replanned. With a live provider configured the interpreter is an LLM; any provider failure falls back to the deterministic interpreter and records why, so a session never dies because a model did. See Finding 003.
+
 ## Run it
 
 Requires Python 3.12 and pydantic.

@@ -91,3 +91,27 @@ One result worth pausing on: the "less busy bass" output is byte-identical to Tr
 Feedback also composes: two revision sentences applied together produce a fourth, distinct hash (`d5d63931…`), neither single-feedback output. Stacking by accumulated instruction works today; the program keeping its own session state is the next build.
 
 **Lesson:** a generator that cannot be surprised by its own input is a stamp with good marketing. Hash the prompt's effect, not just the feedback's.
+
+## Finding 003: the session had no memory (2026-10-26)
+
+**Method:** script a multi-round session against the v2 code and try to prove, from files on disk, what each revision did.
+
+**Result:** impossible. Revisions lived only in process memory: no round files, no ledger, no record of what was asked, what was kept, or what changed. "Keep the bass" was a claim the program made about itself with no evidence anyone could check. The LLM translator had the same manners problem in reverse: a provider failure (missing binary, timeout, unparseable output) raised instead of degrading.
+
+**Resolution (2026-10-26, Build 3, same fleet pattern):**
+- Sessions persist every round: `rounds/round-NNN.mid` + `round-NNN.json`, and a `rounds.jsonl` ledger carrying each round's text, accumulated feedback, frozen parts, and MD5. The driver is `muse session --data DIR --say "TEXT"` (repeatable; `--offline` for the deterministic interpreter).
+- "Keep the bass" freezes that part in the planner: frozen parts are copied note for note from the previous round while the rest is replanned. Feedback accumulates: round N's plan carries every revision sentence so far.
+- The translator never raises for a provider problem: any failure returns the deterministic interpreter's brief, marked as fallback, with the cause recorded. The default model is pinned (`opencode/deepseek-v4.1-flash-free` when listed), and a fixture mode (`MUSE_LLM_FIXTURE` pointing at a CreativeBrief JSON) lets tests run with no provider at all.
+- Gate v3 adds session probes: ledger integrity, frozen-part preservation, feedback accumulation. The live-provider test stays opt-in (`MUSE_LIVE_EVAL=1`).
+
+**The gate earned its keep at this merge:** on the first merged run, the preservation probe failed on the sentence "keep the bass, thinner drums". The freeze detector consumed the whole sentence and froze the drums too, so the output was byte-identical to the previous round. Fixed by scoping the keep-list to the run of role mentions at the start of the phrase; a new instruction ends it. Gate after the fix: 7 of 7 probes, 16 passed, 1 skipped (live eval).
+
+| Scripted session (offline) | MD5 |
+|---|---|
+| create: "Make a dark and tense electronic groove at 92 bpm" | `aaf9da4b9d5a3332e256d10edbc91b86` |
+| revise: "keep the bass, thinner drums" (frozen: bass) | `b9bceded2bc49c7544a1ce9e1ec0f6ca` |
+| revise: "take it darker" (feedback accumulated) | `5ae79eb612a9613303d619060e63da94` |
+
+Round 0 and round 1 share every bass note exactly; the drums differ. Round 2 rendered to WAV in the same run (3.3 MB, FluidR3_GM).
+
+**Lesson:** a revision you cannot audit is a promise. State is not bookkeeping; it is what makes "keep that, change this" a fact instead of a vibe.
