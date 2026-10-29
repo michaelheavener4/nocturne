@@ -48,5 +48,5 @@ jobs:
 
       - name: Demo smoke
         run: |
-          muse demo --prompt "ci smoke"
-          python -c "from pathlib import Path; p=Path('data/projects/muse_sketch.mid'); b=p.read_bytes(); assert p.is_file() and len(b) > 14 and b[:4] == b'MThd', (p, len(b), b[:4]); print(p, len(b))"
+          nocturne demo --prompt "ci smoke"
+          python -c "from pathlib import Path; p=Path('data/projects/nocturne_sketch.mid'); b=p.read_bytes(); assert p.is_file() and len(b) > 14 and b[:4] == b'MThd', (p, len(b), b[:4]); print(p, len(b))"
