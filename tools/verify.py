@@ -3,8 +3,14 @@
 
 Usage:
     python tools/verify.py
+    python tools/verify.py --only {gate,grooves,forms,contrast}
 
-Exits 0 only when the whole suite passes, feedback changes the output, the
+With no flag, every probe runs. ``--only gate`` is the pytest suite.
+``--only grooves`` is the groove-baseline probe. ``--only forms`` is the
+form probes (club 96-bar and the pop form already in this file).
+``--only contrast`` runs chorus/verse contrast probes when they are wired.
+
+The full gate exits 0 only when the whole suite passes, feedback changes the output, the
 prompt composes a distinct and key-correct sketch, repeated prompts are
 deterministic, scripted sessions persist an honest rounds ledger, and full
 songs have real form, key-true harmony, a developing melody, and transitions.
@@ -648,32 +654,78 @@ def run_club_determinism_probe() -> bool:
     return True
 
 
-def main() -> int:
-    pytest_cmd = [sys.executable, "-m", "pytest", "-q", "tests"]
-    print("== pytest ==")
-    print("$ " + " ".join(pytest_cmd))
-    pytest_result = subprocess.run(pytest_cmd, cwd=REPO_ROOT, env=_demo_env()).returncode
-    print(f"pytest: {'PASS' if pytest_result == 0 else 'FAIL'} (exit {pytest_result})")
+_ONLY_SECTIONS = ("gate", "grooves", "forms", "contrast")
 
-    probes = {
-        "feedback hash": run_hash_probe(),
-        "prompt sensitivity": run_prompt_sensitivity_probe(),
-        "key truth": run_key_truth_probe(),
-        "determinism": run_determinism_probe(),
-        "session ledger": run_session_ledger_probe(),
-        "session preservation": run_session_preservation_probe(),
-        "session accumulation": run_session_accumulation_probe(),
-        "song form": run_song_form_probe(),
-        "song key truth": run_song_key_probe(),
-        "song melody variation": run_song_melody_probe(),
-        "song transitions": run_song_transition_probe(),
-        "song determinism": run_song_determinism_probe(),
-        "song progressions": run_song_progression_probe(),
-        "song hook": run_song_hook_probe(),
-        "club form + builds": run_club_form_probe(),
-        "repetition report": run_repetition_report_probe(),
-        "club determinism": run_club_determinism_probe(),
-    }
+
+def _parse_only(argv: list[str]) -> str | None:
+    """Return the ``--only`` section, or None when the full gate should run."""
+    if not argv:
+        return None
+    if len(argv) == 2 and argv[0] == "--only":
+        section = argv[1]
+    elif len(argv) == 1 and argv[0].startswith("--only="):
+        section = argv[0].split("=", 1)[1]
+    else:
+        print(
+            "usage: python tools/verify.py [--only {gate,grooves,forms,contrast}]",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    if section not in _ONLY_SECTIONS:
+        print(
+            f"unknown section {section!r}; choose from: {', '.join(_ONLY_SECTIONS)}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    return section
+
+
+def main() -> int:
+    only = _parse_only(sys.argv[1:])
+    # Section is None for probes that run only as part of the full gate.
+    # There is no standalone chorus/verse contrast probe in this file.
+    runners = (
+        ("feedback hash", None, run_hash_probe),
+        ("prompt sensitivity", None, run_prompt_sensitivity_probe),
+        ("key truth", None, run_key_truth_probe),
+        ("determinism", None, run_determinism_probe),
+        ("session ledger", None, run_session_ledger_probe),
+        ("session preservation", None, run_session_preservation_probe),
+        ("session accumulation", None, run_session_accumulation_probe),
+        ("song form", "forms", run_song_form_probe),
+        ("song key truth", None, run_song_key_probe),
+        ("song melody variation", None, run_song_melody_probe),
+        ("song transitions", None, run_song_transition_probe),
+        ("song determinism", None, run_song_determinism_probe),
+        ("song progressions", None, run_song_progression_probe),
+        ("song hook", None, run_song_hook_probe),
+        ("club form + builds", "forms", run_club_form_probe),
+        ("repetition report", None, run_repetition_report_probe),
+        ("club determinism", "grooves", run_club_determinism_probe),
+    )
+    if only == "contrast" and not any(section == "contrast" for _, section, _ in runners):
+        print("contrast: no standalone probes wired; run the full gate")
+        return 1
+
+    pytest_result = 0
+    if only in (None, "gate"):
+        pytest_cmd = [sys.executable, "-m", "pytest", "-q", "tests"]
+        print("== pytest ==")
+        print("$ " + " ".join(pytest_cmd))
+        pytest_result = subprocess.run(pytest_cmd, cwd=REPO_ROOT, env=_demo_env()).returncode
+        print(f"pytest: {'PASS' if pytest_result == 0 else 'FAIL'} (exit {pytest_result})")
+
+    if only == "gate":
+        return pytest_result
+
+    probes = {}
+    for name, section, run in runners:
+        if only is not None and section != only:
+            continue
+        probes[name] = run()
+
+    if only is not None:
+        return 0 if probes and all(probes.values()) else 1
 
     print("\n== probe summary ==")
     for name, passed in probes.items():
