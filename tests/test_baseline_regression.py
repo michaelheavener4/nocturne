@@ -18,10 +18,10 @@ BASE_PLAN_PATH = FIXTURES / "track001_base_plan.json"
 # measures the writer and note transforms, not whatever the planner currently
 # seeds. That keeps it stable while Stream A rewrites arrangement.py.
 KNOWN_HASHES = {
-    "base": "677dcf582ad908e00570f4b058e263da",
-    "v1-bass-thinned": "84cf556a302aa2c805e2440d18446bab",
-    "v2-darker-lower": "65b9812b85cab599629d863d2e228dc2",
-    "v3-dark-thin-finalbar": "7db06e0cc8c841b044392d45c44da1a4",
+    "base": "ba578e06f857248d453ecc95417570e6",
+    "v1-bass-thinned": "e9d1a2e6b5fcca9a2bb834221a304f4d",
+    "v2-darker-lower": "41cfcda66b7b9539d5279cde26aea337",
+    "v3-dark-thin-finalbar": "5bf9926ab72b4290f86cb6359283c78a",
 }
 
 

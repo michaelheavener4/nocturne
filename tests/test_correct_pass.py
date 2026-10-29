@@ -91,11 +91,11 @@ def test_input_reaches_notes_and_rejects_metadata_only_fixture(change, role):
 
 
 @pytest.mark.parametrize('form,digest', [
-    (None, '2645c4f1436bd771b579aad3ed71b06b'),
-    ('edm', '2645c4f1436bd771b579aad3ed71b06b'),
-    ('club', '13363b9c6ba220b1562c939a08c6005f'),
-    ('pop', '7aa3def65cb55c96f203b11283829b38'),
-    ('pop84', 'b8a148690241d434deb662826f7f6008'),
+    (None, '402d2ebb45d0a36b0a6728d9c9ca7368'),
+    ('edm', '402d2ebb45d0a36b0a6728d9c9ca7368'),
+    ('club', '024c47a7f8ee09db5908c46f75212357'),
+    ('pop', 'c5d5216fac8c41f608bb06af355db743'),
+    ('pop84', '459257abd937938137c7bc2760b51782'),
 ])
 def test_prompt_steered_song_bytes(form, digest, tmp_path):
     # Stream 75A song identity: seeded progression, motif, bass and drums.

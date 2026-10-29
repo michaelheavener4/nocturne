@@ -3,6 +3,7 @@ from __future__ import annotations
 from .models import ArrangementPlan, CreativeBrief, Note, TrackPlan
 from .intent import parse_feedback
 from .grooves import GM_PERCUSSION, GROOVE_PRESETS, ghost_velocity
+from .instruments import PALETTES
 import re
 import hashlib
 import json
@@ -357,8 +358,25 @@ class ArrangementPlanner:
                     notes = [tracks["melody"][-1]]
                 signature = tuple((n.pitch, n.start - absolute * 4, n.duration) for n in notes)
             previous_bars.append(signature)
-        parts = [("drums", "NOCTURNE Drums", "Ableton Core Kit"), ("bass", "NOCTURNE Bass", "Operator"),
-                 ("harmony", "NOCTURNE Atmosphere", "Wavetable"), ("melody", "NOCTURNE Motif", "Operator")]
+        # Choose after composing so palette draws preserve the existing note identity.
+        rules = {
+            "drums": [(("techno", "house", "club", "edm", "rave"), "Electronic Kit"),
+                      (("trap",), "TR-808 Kit"),
+                      (("lofi", "jazz", "slow", "chill"), "Brush Kit"),
+                      (("punk", "fast", "driving"), "Power Kit")],
+            "melody": [(("piano",), "Grand Piano"),
+                       (("dreamy", "ambient", "ethereal"), "Music Box"),
+                       (("flute", "orchestral"), "Flute")],
+        }
+        instruments = {}
+        for role, palette in PALETTES.items():
+            instruments[role] = next((name for words, name in rules.get(role, [])
+                                      if mood_words(words)), None)
+            if instruments[role] is None:
+                instruments[role] = rng.choice(palette)
+        parts = [(role, name, instruments[role]) for role, name in (
+            ("drums", "NOCTURNE Drums"), ("bass", "NOCTURNE Bass"),
+            ("harmony", "NOCTURNE Atmosphere"), ("melody", "NOCTURNE Motif"))]
         return ArrangementPlan(title="NOCTURNE song", tempo=float(brief.musical_constraints.get("tempo_bpm", 120)), bars=bar, key=key,
                                groove_name=groove, progression_name=progression_name, progression=list(progression), form=form, tracks=[TrackPlan(name=name, role=role, instrument=instrument, notes=tracks[role]) for role, name, instrument in parts],
                                rationale=["Section energy shapes register, velocity and density.", "Harmony follows a diatonic four-chord progression."])
