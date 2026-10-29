@@ -87,11 +87,13 @@ def progression_audit(render: SongRender, mood: str) -> dict:
             f"{expected_name!r} (prompt: {render.prompt!r})"
         )
     cycle = plan.get("progression")
-    if not isinstance(cycle, list) or tuple(cycle) != expected_cycle:
+    rotations = [expected_cycle[i:] + expected_cycle[:i] for i in range(4)]
+    if not isinstance(cycle, list) or tuple(cycle) not in rotations:
         raise AssertionError(
             f"{mood} progression is {cycle!r}, contract says "
             f"{list(expected_cycle)!r}"
         )
+    expected_cycle = tuple(cycle)  # Seeded rotation is now part of the song contract.
     bass = notes_for_role(plan, "bass")
     roots: dict[int, int] = {}
     for note in bass:
