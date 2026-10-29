@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .models import ArrangementPlan, CreativeBrief, Note, TrackPlan
 from .intent import parse_feedback
+from .grooves import GM_PERCUSSION, GROOVE_PRESETS, ghost_velocity
 import re
 import hashlib
 import json
@@ -126,7 +127,7 @@ class ArrangementPlanner:
         return ArrangementPlan(title="NOCTURNE eight-bar sketch" if bars == 8 else f"NOCTURNE {bars}-bar sketch", tempo=tempo, bars=bars, key=key, tracks=tracks,
                                rationale=["Low register anchors the pulse.", "Sustained harmony leaves room for the motif.", "Final-bar variation can be added during refinement."])
 
-    def song(self, brief: CreativeBrief, form: str | None = None) -> ArrangementPlan:
+    def song(self, brief: CreativeBrief, form: str | None = None, groove: str | None = None) -> ArrangementPlan:
         """Compose a deterministic, section-based arrangement in absolute beats."""
         from .models import SongSection
 
@@ -140,6 +141,16 @@ class ArrangementPlanner:
         text = seed_content["intent"].lower()
         if form not in (None, "edm", "club", "pop"):
             raise ValueError("form must be edm, club, pop, or None")
+        if groove is None:
+            for pattern, name in ((r"\btrap\b", "trap"), (r"\bdubstep\b", "dubstep"),
+                                  (r"\b(?:drum and bass|dnb)\b", "dnb"),
+                                  (r"\b(?:dembow|reggaeton)\b", "dembow"),
+                                  (r"\bhouse\b", "house")):
+                if re.search(pattern, text):
+                    groove = name
+                    break
+        if groove is not None and groove not in GROOVE_PRESETS:
+            raise ValueError(f"unknown groove: {groove}")
         pop = bool(re.search(r"\b(song|vocal|vocals|singer|singing|pop|chorus)\b", text)) and not bool(re.search(r"\b(edm|dance|beat)\b", text))
         templates = ([("intro", 4, .35), ("verse", 8, .5), ("pre-chorus", 4, .7), ("chorus", 8, 1),
                       ("verse", 8, .5), ("chorus", 8, 1), ("bridge", 4, .4), ("chorus", 8, 1), ("outro", 4, .3)] if pop else
@@ -194,7 +205,21 @@ class ArrangementPlanner:
                 riser = next_role in ("drop", "chorus") and local >= section.bars - 2
                 impact = section.role in ("drop", "chorus") and local == 0
                 build = section.role == "build"
-                if section.role != "breakdown":
+                if groove is not None:
+                    preset = GROOVE_PRESETS[groove]
+                    snare_velocity = int(75 + 25 * energy)
+                    for part, gm_name, velocity in (
+                        ("kick", "kick", int(85 + 27 * energy)),
+                        ("snare", "snare", snare_velocity),
+                        ("hat", "closed_hat", int(55 + 25 * energy)),
+                        ("open_hat", "open_hat", int(60 + 25 * energy)),
+                    ):
+                        for step in preset[part]:
+                            drum(GM_PERCUSSION[gm_name], start + step * .25, velocity)
+                    if preset["ghost"]:
+                        for step in (7, 15):
+                            drum(GM_PERCUSSION["snare"], start + step * .25, ghost_velocity(snare_velocity))
+                elif section.role != "breakdown":
                     if not (build and local == section.bars - 1):
                         drum(36, start, int(85 + 27 * energy))
                     if build:
@@ -252,7 +277,7 @@ class ArrangementPlanner:
                     add("melody", d, octave, start + offset + shift, .35, int(60 + 30 * energy))
                 if impact:
                     drum(49, start, 127)
-            # Breakdown is deliberately silent in drums, including its transition.
+            # Without a preset, breakdown drums are deliberately silent.
         # Guard against repeated bars even when seeded operators happen to coincide.
         previous_bars: list[tuple] = []
         for absolute in range(bar):
@@ -271,5 +296,5 @@ class ArrangementPlanner:
         parts = [("drums", "NOCTURNE Drums", "Ableton Core Kit"), ("bass", "NOCTURNE Bass", "Operator"),
                  ("harmony", "NOCTURNE Atmosphere", "Wavetable"), ("melody", "NOCTURNE Motif", "Operator")]
         return ArrangementPlan(title="NOCTURNE song", tempo=float(brief.musical_constraints.get("tempo_bpm", 120)), bars=bar, key=key,
-                               progression_name=progression_name, progression=list(progression), form=form, tracks=[TrackPlan(name=name, role=role, instrument=instrument, notes=tracks[role]) for role, name, instrument in parts],
+                               groove_name=groove, progression_name=progression_name, progression=list(progression), form=form, tracks=[TrackPlan(name=name, role=role, instrument=instrument, notes=tracks[role]) for role, name, instrument in parts],
                                rationale=["Section energy shapes register, velocity and density.", "Harmony follows a diatonic four-chord progression."])

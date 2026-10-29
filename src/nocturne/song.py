@@ -1,25 +1,7 @@
-"""Full-song routing for create requests (Build 5).
-
-The song planner itself is ArrangementPlanner.song(brief, form=None):
-form templates (edm 44, club 96, pop 56), progression harmony, developing
-melody, transitions. This module only decides whether a create
-request is asking for a full song, which form it named, and delegates
-planning to that planner, so `nocturne song` and a song-shaped session
-create share one definition of "song request" and one planning entry
-point.
-
-History: Stream C4 originally shipped a fallback planner here behind
-an adapter that looked for a planner method named plan_song. Stream
-A4 named its method song, the adapter never matched, and the merge
-briefly carried two planners and two CLI registrations. Coordinator
-fix: the fallback planner is deleted; this module delegates. Build 5
-pins the form keyword on that same method; until Stream A5 lands the
-keyword, plan_song omits it so the 8-bar suite stays green.
-"""
+"""Full-song request routing and the shared arrangement planning entry point."""
 
 from __future__ import annotations
 
-import inspect
 import re
 
 from .arrangement import ArrangementPlanner
@@ -73,21 +55,6 @@ def form_used(plan: ArrangementPlan, requested: str | None = None) -> str:
     return "edm"
 
 
-def plan_song(brief: CreativeBrief, form: str | None = None) -> ArrangementPlan:
-    """Plan a full song from the brief via the arrangement planner.
-
-    form is one of {"edm", "club", "pop", None}. None lets the planner
-    infer the template from the brief. The pinned entry is
-    ArrangementPlanner.song(brief, form=None).
-    """
-    planner = ArrangementPlanner()
-    method = planner.song
-    try:
-        params = inspect.signature(method).parameters
-    except (TypeError, ValueError):
-        params = {}
-    if "form" in params or any(
-        parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in params.values()
-    ):
-        return method(brief, form=form)
-    return method(brief)
+def plan_song(brief: CreativeBrief, form: str | None = None, groove: str | None = None) -> ArrangementPlan:
+    """Plan a full song, inferring form and groove when omitted."""
+    return ArrangementPlanner().song(brief, form=form, groove=groove)
