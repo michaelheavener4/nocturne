@@ -152,3 +152,20 @@ Round 0 and round 1 share every bass note exactly; the drums differ. Round 2 ren
 | Full suite | 111 passed, 1 skipped (80 pre-fix baseline + new cases) |
 
 **Lesson:** a seeded RNG is not variety. Variety is the number of composition decisions the seed is actually allowed to make, and only a listening test (or a diversity battery) can audit that. Hash your outputs, vary your inputs, and make a human listen.
+
+## Finding 007 — Every render was four pianos (2026-10-29)
+
+**Claim (the owner's ear, 2026-10-29):** after the Finding 006 fix the songs were audibly different songs, but they "sound MIDI" and had "no uniqueness on the instrumentation."
+
+**Verified, two layers:** (1) `ArrangementPlanner.song()` hardcoded one instrument per role for every song (drums "Ableton Core Kit", bass "Operator", harmony "Wavetable", melody "Operator"). (2) Worse: `write_midi` emitted only note on/off events — no program changes at all, and drums were not routed to the GM drum channel (9). An independent decoder run over a pre-fix file shows the whole story: program changes: none; note channels: 0, 1, 2, 3. Every GM render was four piano parts, the drum pattern (pitches chosen from the GM drum map) played as low piano notes. The plan knew its Ableton instruments; the file threw them away.
+
+**Fix (Build 7.6, fleet, same day):** new `instruments.py` registry mapping Ableton-flavoured instrument names to GM programs (role-aware for legacy aliases); `write_midi` emits a tick-zero program change per track and routes drums to channel 9 with the selected kit; `song()` chooses instruments per song from palettes using the existing seeded rng, word-steered where the prompt speaks (techno/club -> Electronic Kit, lofi/slow -> Brush Kit, punk/fast -> Power Kit, piano -> Grand Piano, dreamy -> Music Box). Determinism and the feedback-no-reseed rule are preserved. MIDI bytes changed globally by design; every pinned hash was re-pinned once, each time only after a decoder proved the note sequences (pitch, start, duration, velocity, per role) identical to the pre-fix files.
+
+| Proof on merged main (2026-10-29) | Value |
+|---|---|
+| Independent decode, post-fix files | 4 program changes per song; drums on channel 9 (kits 24/40 across the sample) |
+| Sample battery instruments | 4 distinct melodies, 3 basses, 3 kits across six prompts |
+| Full suite | 158 passed, 1 skipped (111 pre-fix + instrument coverage) |
+| Gate | PASSED, all 17 probes |
+
+**Lesson:** a plan is not its rendering. If a field exists in the model (instrument) but no writer serializes it, the feature does not exist, and only an output-level audit (decode the actual file) can see the gap. The Ableton bridge path remains the production sound; these GM renders are the scratch preview, now at least a truthful one.
