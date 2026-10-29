@@ -38,3 +38,19 @@ def repetition_report(plan: ArrangementPlan) -> dict[str, float | int | bool]:
             "stepwise_only": stepwise,
             "repetitive_flag": (share > .75 and bool(cells) and cells[-1] == cells[0])
                                or (pitch_range < 5 and stepwise)}
+
+
+def contrast_report(plan: ArrangementPlan) -> dict[str, dict[str, float]]:
+    """Pool melody notes by section name, using onset to assign sections.
+
+    Silent section names have zero means so both reported values remain floats.
+    """
+    melody = [n for track in plan.tracks if track.role == "melody" for n in track.notes]
+    grouped = {}
+    for section in plan.form:
+        notes = grouped.setdefault(section.name, [])
+        notes.extend(n for n in melody
+                     if section.start_bar * 4 <= n.start < (section.start_bar + section.bars) * 4)
+    return {name: {"mean_melody_velocity": sum(n.velocity for n in notes) / len(notes) if notes else 0.0,
+                   "mean_melody_pitch": sum(n.pitch for n in notes) / len(notes) if notes else 0.0}
+            for name, notes in grouped.items()}

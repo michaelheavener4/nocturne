@@ -9,6 +9,12 @@ import json
 import random
 
 
+# Labelled heuristics, NOT research-measured defaults; underlying corpus:
+# 1955-1991 rock/pop. Register direction is implemented in scale degrees.
+CONTRAST_HEURISTICS = {"chorus_velocity_factor": 1.10,
+                       "chorus_register_semitones": 2, "verse_velocity_factor": 0.95}
+
+
 def _repeat(notes: list[Note], bars: int = 8) -> list[Note]:
     return [n.model_copy(update={"start": n.start + bar * 4}) for bar in range(bars) for n in notes]
 
@@ -139,8 +145,12 @@ class ArrangementPlanner:
         seed = hashlib.sha256(json.dumps(seed_content, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).digest()
         rng = random.Random(int.from_bytes(seed, "big"))
         text = seed_content["intent"].lower()
-        if form not in (None, "edm", "club", "pop"):
-            raise ValueError("form must be edm, club, pop, or None")
+        if form is None:
+            from .song import requested_form
+            if requested_form(text) == "pop84":
+                form = "pop84"
+        if form not in (None, "edm", "club", "pop", "pop84"):
+            raise ValueError("form must be edm, club, pop, pop84, or None")
         if groove is None:
             for pattern, name in ((r"\btrap\b", "trap"), (r"\bdubstep\b", "dubstep"),
                                   (r"\b(?:drum and bass|dnb)\b", "dnb"),
@@ -162,6 +172,19 @@ class ArrangementPlanner:
             templates = [("intro", 4, .35), ("verse", 8, .5), ("build", 8, .75), ("drop", 8, 1), ("breakdown", 4, .25), ("drop", 8, 1), ("outro", 4, .3)]
         elif form == "club":
             templates = [("intro", 16, .35), ("build", 8, .75), ("drop", 16, 1), ("breakdown", 16, .25), ("build", 8, .75), ("drop", 16, 1), ("outro", 16, .3)]
+        if form == "pop84":
+            # Labelled 84-bar inference from Hit Songs Deconstructed 2024 data.
+            tempo = brief.musical_constraints.get("tempo_bpm")
+            first_verse = 8 if tempo is not None and float(tempo) < 95 else 16
+            # Postchorus inherits chorus energy; prechorus is the pop pre-chorus.
+            energies = {"intro": .35, "verse": .5, "prechorus": .7,
+                        "chorus": 1, "postchorus": 1, "bridge": .4, "outro": .3}
+            templates = [(name, bars, energies[name]) for name, bars in (
+                ("intro", 4), ("verse", first_verse), ("prechorus", 4),
+                ("chorus", 8), ("postchorus", 4), ("verse", 8),
+                ("prechorus", 4), ("chorus", 8), ("postchorus", 4),
+                ("bridge", 8), ("chorus", 8), ("postchorus", 4), ("outro", 4))]
+        contrast = form in ("pop", "pop84") or (form is None and pop)
         requested_form = form
         form = []
         bar = 0
@@ -187,6 +210,13 @@ class ArrangementPlanner:
         def pitch(degree: int, octave: int) -> int:
             return 12 * octave + tonic + scale[degree % 7] + 12 * (degree // 7)
         def add(role: str, degree: int, octave: int, start: float, duration: float, velocity: int):
+            if contrast and role == "melody":
+                if section.name in ("chorus", "postchorus"):
+                    # Two SCALE DEGREES at generation, before MIDI mapping.
+                    degree += 2
+                    velocity = round(velocity * CONTRAST_HEURISTICS["chorus_velocity_factor"])
+                elif section.name == "verse":
+                    velocity = round(velocity * CONTRAST_HEURISTICS["verse_velocity_factor"])
             tracks[role].append(Note(pitch=pitch(degree, octave), start=start, duration=duration, velocity=max(1, min(127, velocity))))
         def drum(p: int, start: float, velocity: int):
             tracks["drums"].append(Note(pitch=p, start=start, duration=.15, velocity=velocity))
