@@ -204,8 +204,15 @@ class ArrangementPlanner:
             progression_name, progression = "driving", (0, 6, 5, 6)
         elif requested_form == "club":
             progression_name, progression = "dance", (0, 5, 6, 3)
-        else:
+        elif mood_words(("dark", "tense", "nocturnal")):
             progression_name, progression = "dark", (0, 5, 2, 6)
+        else:
+            progression_name, progression = rng.choice((
+                ("dark", (0, 5, 2, 6)), ("euphoric", (0, 2, 6, 5)),
+                ("brooding", (0, 4, 3, 6)), ("driving", (0, 6, 5, 6)),
+                ("dance", (0, 5, 6, 3))))
+        rotation = rng.randrange(4)
+        progression = progression[rotation:] + progression[:rotation]
         tracks = {role: [] for role in ("drums", "bass", "harmony", "melody")}
         def pitch(degree: int, octave: int) -> int:
             return 12 * octave + tonic + scale[degree % 7] + 12 * (degree // 7)
@@ -220,9 +227,35 @@ class ArrangementPlanner:
             tracks[role].append(Note(pitch=pitch(degree, octave), start=start, duration=duration, velocity=max(1, min(127, velocity))))
         def drum(p: int, start: float, velocity: int):
             tracks["drums"].append(Note(pitch=p, start=start, duration=.15, velocity=velocity))
-        # A two-bar motif in chord-relative scale degrees, with stable seeded contour.
-        motif = [(0, 0, 0), (0, 1, 4), (0, 2.5, 4), (0, 3.5, rng.choice((1, 2))),
-                 (1, .5, 4), (1, 1.5, 2), (1, 2.5, 0), (1, 3.5, rng.choice((2, 4)))]
+        # Generate identity once; section operators below reuse this same motif.
+        rhythm = rng.choice((
+            ((0, 1, 2.5, 3.5), (.5, 1.5, 2.5, 3.5)),
+            ((0, .5, 2, 3), (0, 1.5, 2, 3.5)),
+            ((0, 1.5, 3), (.5, 2, 3.5)),
+            ((.5, 1, 2, 3.5), (0, 1, 2.5)),
+            ((0, .75, 2, 2.75), (.5, 1.5, 2, 3))))
+        motif = []
+        degree = rng.choice((0, 2, 4))
+        for motif_bar, offsets in enumerate(rhythm):
+            for offset in offsets:
+                target = max(0, min(6, degree + rng.choice((-2, -1, 0, 1, 2))))
+                if offset in (0, 2):
+                    distances = [abs(tone - target) for tone in (0, 2, 4)]
+                    nearest = min(distances)
+                    degree = rng.choice(tuple(tone for tone, distance in zip((0, 2, 4), distances) if distance == nearest))
+                else:
+                    degree = target
+                motif.append((motif_bar, offset, degree))
+        bass_pattern = rng.choice((
+            ((0, 0, .8), (1, 0, .8), (2, 0, .8), (3, 0, .8)),
+            tuple((i / 2, 7 if i % 2 else 0, .4) for i in range(8)),
+            ((0, 0, .65), (1.5, 0, .4), (2.5, 7, .4), (3.5, 0, .4)),
+            ((0, 0, 1.7), (2, 7, 1.7))))
+        # Default groove variants only: explicit presets retain their exact application.
+        kick_offsets = rng.choice(((0,), (0, 2.5), (0, 1, 2, 3)))
+        hat_offsets = rng.choice(((.5, 1.5, 2.5, 3.5),
+                                  tuple(i / 2 for i in range(8)),
+                                  (1.5, 3.5)))
         return_index = 0
         for si, section in enumerate(form):
             next_role = form[si + 1].role if si + 1 < len(form) else None
@@ -251,7 +284,8 @@ class ArrangementPlanner:
                             drum(GM_PERCUSSION["snare"], start + step * .25, ghost_velocity(snare_velocity))
                 elif section.role != "breakdown":
                     if not (build and local == section.bars - 1):
-                        drum(36, start, int(85 + 27 * energy))
+                        for off in kick_offsets:
+                            drum(36, start + off, int(85 + 27 * energy))
                     if build:
                         spacing = 1 if local < section.bars // 3 else .5 if local < 2 * section.bars // 3 else .25
                         if local == section.bars - 1:
@@ -260,7 +294,7 @@ class ArrangementPlanner:
                             drum(38, start + i * spacing, min(120, 75 + local * 3))
                     else:
                         drum(38, start + 2, int(75 + 25 * energy))
-                    for off in ([.5, 1.5, 2.5, 3.5] if energy >= .7 else [1.5, 3.5]):
+                    for off in (hat_offsets if energy >= .7 else hat_offsets[::2]):
                         drum(42, start + off, int(55 + 25 * energy))
                     if local == section.bars - 1 and not build:
                         for off in (2.25, 2.75, 3, 3.25, 3.5, 3.75):
@@ -268,9 +302,9 @@ class ArrangementPlanner:
                     if riser:
                         for off in ([0, 1, 2, 3] if local == section.bars - 2 else [x / 2 for x in range(8)]):
                             drum(46, start + off, 65 + int(20 * energy) + (10 if local == section.bars - 1 else 0))
-                add("bass", root, 3, start, .8, int(65 + 35 * energy))
-                if energy >= .5:
-                    add("bass", root + 7, 3, start + 2, .65, int(60 + 30 * energy))
+                for off, degree, duration in bass_pattern:
+                    if energy >= .5 or off in (0, 2):
+                        add("bass", root + degree, 3, start + off, duration, int(65 + 35 * energy))
                 # Broken voicing, with root/fifth only in the breakdown.
                 tones = (root, root + 4) if section.role == "breakdown" else chord
                 for i, degree in enumerate(tones):

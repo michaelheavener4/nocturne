@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 from .models import CreativeBrief
 
 
@@ -56,7 +57,20 @@ class IntentInterpreter:
                 "playfulness": ("playful", "bouncy", "whimsical"),
             }.items() if any(w in lower for w in words)
         }
+        # Hash only the original prompt: appended feedback must not change identity.
+        prompt = re.sub(r"\s*\[feedback: .*\]$", "", lower, flags=re.I | re.S)
+        digest = hashlib.sha256(prompt.encode("utf-8")).digest()
+        def words(family: tuple[str, ...]) -> bool:
+            return any(re.search(r"\b" + word + r"\b", prompt) for word in family)
+
         bpm = 120.0
+        # Explicit BPM wins; otherwise fast, dance, then slow resolves mixed cues.
+        if words(("punk", "fast", "driving", "urgent", "intense")):
+            bpm = float(138 + int.from_bytes(digest[:8], "big") % 13)
+        elif words(("techno", "house", "club", "dance", "rave")):
+            bpm = float(122 + int.from_bytes(digest[:8], "big") % 11)
+        elif words(("lofi", "chill", "ballad", "slow", "dreamy", "ambient", "downtempo")):
+            bpm = float(76 + int.from_bytes(digest[:8], "big") % 17)
         match = re.search(r"(\d{2,3})\s*bpm", lower)
         if match:
             bpm = float(match.group(1))
@@ -65,7 +79,14 @@ class IntentInterpreter:
             tonic, accidental, mode_name = key_match.groups()
             key = tonic.upper() + accidental.replace("♯", "#").replace("♭", "b") + " " + mode_name
         else:
-            key = "A minor" if any(w in lower for w in ("dark", "tense", "nocturnal", "melancholy")) else "C minor"
+            # Literal keys win above; legacy dark cues keep A minor, even
+            # alongside bright words. Otherwise hash the tonic in either mode.
+            if any(w in lower for w in ("dark", "tense", "nocturnal", "melancholy")):
+                key = "A minor"
+            else:
+                tonic = ("C", "D", "F", "G", "A")[int.from_bytes(digest[8:16], "big") % 5]
+                mode_name = "major" if words(("happy", "bright", "sunny", "cheerful", "euphoric", "uplifting", "playful")) else "minor"
+                key = tonic + " " + mode_name
         goals = ["8-bar idea", "editable MIDI", "leave space for revision"]
         if "build" in lower or "release" in lower:
             goals.append("increase density toward the final bars")

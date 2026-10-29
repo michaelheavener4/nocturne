@@ -91,14 +91,14 @@ def test_input_reaches_notes_and_rejects_metadata_only_fixture(change, role):
 
 
 @pytest.mark.parametrize('form,digest', [
-    (None, '9a7380a0d56c55e13237172977ac01f9'),
-    ('edm', '9a7380a0d56c55e13237172977ac01f9'),
-    ('club', '036888b59e649c1ac1747dbd06a2f77b'),
-    ('pop', '96c43cea8f480e42e4f8b6a09035834d'),
-    ('pop84', '198ae562ca074ebde0dcd64984a28163'),
+    (None, '2645c4f1436bd771b579aad3ed71b06b'),
+    ('edm', '2645c4f1436bd771b579aad3ed71b06b'),
+    ('club', '13363b9c6ba220b1562c939a08c6005f'),
+    ('pop', '7aa3def65cb55c96f203b11283829b38'),
+    ('pop84', 'b8a148690241d434deb662826f7f6008'),
 ])
-def test_pre_correction_song_bytes(form, digest, tmp_path):
-    # Captured from HEAD e6a1dc7 before correction, including inferred/default form.
+def test_prompt_steered_song_bytes(form, digest, tmp_path):
+    # Stream 75A song identity: seeded progression, motif, bass and drums.
     brief = IntentInterpreter().interpret('dark and tense EDM track, D minor, 92 bpm')
     plan = song.plan_song(brief, form=form)
     assert hashlib.md5(write_midi(plan, tmp_path / 'song.mid').read_bytes()).hexdigest() == digest
