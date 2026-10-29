@@ -50,6 +50,7 @@ class ArrangementPlan(BaseModel):
     tracks: list[TrackPlan]
     rationale: list[str] = Field(default_factory=list)
     form: list[SongSection] = Field(default_factory=list)
+    groove_name: str | None = Field(default=None, exclude_if=lambda value: value is None)
     progression_name: str = ""
     progression: list[int] = Field(default_factory=list)
 
